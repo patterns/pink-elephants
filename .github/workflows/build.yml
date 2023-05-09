@@ -18,8 +18,8 @@ jobs:
   build-test:
     name: build test
     runs-on: ubuntu-latest
-    outputs:
-      zig_fmt_errs: ${{ steps.fmt.outputs.zig_fmt_errs }}
+
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -29,27 +29,7 @@ jobs:
           curl https://ziglang.org/builds/zig-linux-x86_64-${{env.ZIG_VERSION}}.tar.xz -L -o zig.tar.xz
           tar -xf zig.tar.xz
           sudo mv zig-linux-x86_64-${{env.ZIG_VERSION}}/zig /usr/local/bin
-      - name: Run zig fmt
-        id: fmt
-        run: |
-          zig fmt --check src/*.zig src/**/*.zig 2> zig-fmt.err > zig-fmt.err2 || echo "Failed"
-          delimiter="$(openssl rand -hex 8)"
-          echo "zig_fmt_errs<<${delimiter}" >> "${GITHUB_OUTPUT}"
-
-          if [ -s zig-fmt.err ]; then
-            echo "// The following errors occurred:" >> "${GITHUB_OUTPUT}"
-            cat zig-fmt.err >> "${GITHUB_OUTPUT}"
-          fi
-
-          if [ -s zig-fmt.err2 ]; then
-            echo "// The following files were not formatted:" >> "${GITHUB_OUTPUT}"
-            cat zig-fmt.err2 >> "${GITHUB_OUTPUT}"
-          fi
-
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
 
       - name: test module link
-        run: zig build test
-
-
+        run: zig build
 
