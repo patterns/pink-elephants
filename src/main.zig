@@ -12,6 +12,7 @@ pub fn main() !void {
     var b64 = std.base64.standard.Decoder;
     var decoded: [256]u8 = undefined;
     try b64.decode(&decoded, signature_peop);
+    // coerce to many-pointer (for C interop)
     const c_decoded: [*]u8 = &decoded;
 
     try link.pkcs1Verify(c_hashed, c_decoded, modulus_peop, "010001");
