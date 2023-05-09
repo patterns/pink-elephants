@@ -49,7 +49,7 @@ jobs:
           echo "${delimiter}" >> "${GITHUB_OUTPUT}"
 
       - name: test module link
-        run: build test
+        run: zig build test
 
 
 
