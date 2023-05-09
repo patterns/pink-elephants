@@ -5,7 +5,7 @@
     .dependencies = .{
         .pkcs1verify = .{
             .url = "https://github.com/patterns/pkcs1-verify/archive/a5339101ae31009b565b161827d92795b1438da8.tar.gz",
-            .hash = "122075ac038630f9ab660cc4de0d5e7af77affc3eeb6d24f8f2f5efa6e0d60aa6fe7",
+            .hash = "12201ef45d4f828b54e723c205b1506e8faafce886f2e04cf9581ab05fc094faf182",
         },
     },
 }
