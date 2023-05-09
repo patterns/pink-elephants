@@ -27,10 +27,9 @@ jobs:
       - name: Install zig
         run: |
           curl https://ziglang.org/builds/zig-linux-x86_64-${{env.ZIG_VERSION}}.tar.xz -L -o zig.tar.xz
-          tar -xf zig.tar.xz
-          mv zig-linux-x86_64-${{env.ZIG_VERSION}}/zig ${{github.workspace}}/zig
-
+          sudo tar -C /usr/local -xf zig.tar.xz
+          rm zig.tar.xz
 
       - name: test module link
-        run: ${{github.workspace}}/zig build
+        run: zig build
 
