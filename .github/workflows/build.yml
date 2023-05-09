@@ -28,6 +28,7 @@ jobs:
         run: |
           curl https://ziglang.org/builds/zig-linux-x86_64-${{env.ZIG_VERSION}}.tar.xz -L -o zig.tar.xz
           sudo tar -C /usr/local -xf zig.tar.xz
+          sudo ln -s /usr/local/zig-linux-x86_64-${{env.ZIG_VERSION}}/zig /usr/local/bin/zig
           rm zig.tar.xz
 
       - name: test module link
