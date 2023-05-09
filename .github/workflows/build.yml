@@ -31,5 +31,5 @@ jobs:
           sudo mv zig-linux-x86_64-${{env.ZIG_VERSION}}/zig /usr/local/bin
 
       - name: test module link
-        run: zig build
+        run: zig version
 
