@@ -1,11 +1,11 @@
 .{
     .name = "pinkelephants",
-    .version = "0.0.1",
+    .version = "0.0.2",
 
     .dependencies = .{
         .pkcs1verify = .{
-            .url = "https://github.com/patterns/pkcs1-verify/archive/a5339101ae31009b565b161827d92795b1438da8.tar.gz",
-            .hash = "12201ef45d4f828b54e723c205b1506e8faafce886f2e04cf9581ab05fc094faf182",
+            .url = "https://github.com/patterns/pkcs1-verify/releases/download/v0.0.5/76a30c413cb34c533539c325e55e974ce13c05eb.tar.gz",
+            .hash = "1220a3f3fe868829b6e6fbb204bb423aaaf6dbc80443f82351f2856f04d177604833",
         },
     },
 }
