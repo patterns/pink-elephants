@@ -1,7 +1,7 @@
 name: build-test
 
 env:
-  ZIG_VERSION: 0.11.0-dev.3031+f40539e5d
+  ZIG_VERSION: 0.11.0-dev.3050+05ceac52c
 
 on:
   pull_request:
