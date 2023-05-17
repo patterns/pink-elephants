@@ -7,11 +7,10 @@ const export_names = [_][]const u8 {
 };
 
 pub fn build(b: *std.Build) void {
-    ////const ct = try std.zig.CrossTarget.parse(.{.arch_os_abi = "wasm32-wasi"});
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // build (C) lib without cmake
+    // enable clib cross-compilation
     const lib = b.addStaticLibrary(.{
         .name = "pkcs1verify",
         .target = target,
@@ -99,7 +98,7 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath("./deps/mbedtls/include");
     exe.addModule("pkcs1", pkcs1);
     exe.single_threaded = true;
-    ////exe.export_symbol_names = &export_names;
+    exe.export_symbol_names = &export_names;
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another
@@ -128,7 +127,7 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
