@@ -1,8 +1,16 @@
 const std = @import("std");
+// export symbols (in 0.11 see zig/issues/14139)
+const export_names = [_][]const u8 {
+        "canonical_abi_free",
+        "canonical_abi_realloc",
+        "handle-http-request",
+};
 
 pub fn build(b: *std.Build) void {
+    ////const ct = try std.zig.CrossTarget.parse(.{.arch_os_abi = "wasm32-wasi"});
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
     // build (C) lib without cmake
     const lib = b.addStaticLibrary(.{
         .name = "pkcs1verify",
@@ -90,6 +98,8 @@ pub fn build(b: *std.Build) void {
     exe.linkLibrary(lib);
     exe.addIncludePath("./deps/mbedtls/include");
     exe.addModule("pkcs1", pkcs1);
+    exe.single_threaded = true;
+    ////exe.export_symbol_names = &export_names;
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another
@@ -131,3 +141,4 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
 }
+

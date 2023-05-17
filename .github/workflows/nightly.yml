@@ -28,5 +28,11 @@ jobs:
           rm zig.tar.xz
 
       - name: Build components
-        run: zig build
+        run: zig build -Dtarget=wasm32-wasi
+
+      - name: Save wasm binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: wasm-bin
+          path: zig-out
 
