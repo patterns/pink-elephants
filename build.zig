@@ -131,6 +131,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    unit_tests.linkLibC();
+    unit_tests.linkLibrary(lib);
+    unit_tests.addIncludePath("./deps/mbedtls/include");
+    unit_tests.addModule("pkcs1", pkcs1);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
 

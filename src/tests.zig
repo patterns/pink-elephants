@@ -4,6 +4,6 @@ test "Phi" {
 test "Verifier" {
     _ = @import("tests/verifier_tests.zig");
 }
-//test "MbedTLS" {
-//    _ = @import("mbedcrypto.zig");
-//}
+test "MbedTLS" {
+    _ = @import("tests/pkcs1_tests.zig");
+}
