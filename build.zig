@@ -90,9 +90,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    // override the defaults in mbedtls_config.h
-    exe.addIncludePath("./deps/config");
-    exe.defineCMacro("MBEDTLS_CONFIG_FILE", "\"pkcs1verify_config.h\"");
     exe.linkLibC();
     exe.linkLibrary(lib);
     exe.addIncludePath("./deps/mbedtls/include");
