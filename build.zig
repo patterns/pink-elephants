@@ -84,15 +84,37 @@ pub fn build(b: *std.Build) void {
         .{ .source_file = .{ .path = "src/pkcs1.zig" }},
     );
 
-    const exe = b.addExecutable(.{
-        .name = "pinkelephants",
-        .root_source_file = .{ .path = "src/main.zig" },
+
+    // Creates a step for unit testing. This only builds the test executable
+    // but does not run it.
+    const unit_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
-    // override the defaults in mbedtls_config.h
-    exe.addIncludePath("./deps/config");
-    exe.defineCMacro("MBEDTLS_CONFIG_FILE", "\"pkcs1verify_config.h\"");
+    unit_tests.linkLibC();
+    unit_tests.linkLibrary(lib);
+    unit_tests.addIncludePath("./deps/mbedtls/include");
+    unit_tests.addModule("pkcs1", pkcs1);
+
+    _ = b.addRunArtifact(unit_tests);
+
+    // Similar to creating the run step earlier, this exposes a `test` step to
+    // the `zig build --help` menu, providing a way for the user to request
+    // running the unit tests.
+    _ = b.step("test", "Run unit tests");
+
+
+
+
+    // inbox component
+    {
+    const exe = b.addExecutable(.{
+        .name = "inbox",
+        .root_source_file = .{ .path = "src/inbox.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
     exe.linkLibC();
     exe.linkLibrary(lib);
     exe.addIncludePath("./deps/mbedtls/include");
@@ -123,25 +145,7 @@ pub fn build(b: *std.Build) void {
     // This will evaluate the `run` step rather than the default, which is "install".
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+    }
 
-    // Creates a step for unit testing. This only builds the test executable
-    // but does not run it.
-    const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    unit_tests.linkLibC();
-    unit_tests.linkLibrary(lib);
-    unit_tests.addIncludePath("./deps/mbedtls/include");
-    unit_tests.addModule("pkcs1", pkcs1);
-
-    const run_unit_tests = b.addRunArtifact(unit_tests);
-
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_unit_tests.step);
 }
 

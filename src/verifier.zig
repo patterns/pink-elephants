@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const lib = @import("lib.zig");
+const lib = @import("spin.zig");
 const phi = @import("phi.zig");
 const mem = std.mem;
 const Allocator = mem.Allocator;
