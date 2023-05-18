@@ -1,18 +1,48 @@
 const std = @import("std");
-//const webfinger = @import("webfinger.zig");
-//const actor = @import("actor.zig");
-//const outbox = @import("outbox.zig");
-const inbox = @import("inbox.zig");
-
 const phi = @import("phi.zig");
 const Allocator = std.mem.Allocator;
 
-//TODO think interface
-pub const EvalFn = *const fn (a: Allocator, w: *HttpResponse, r: *SpinRequest) void;
-
-// start exports to comply with host
+// interface
+pub fn SpinComponent(
+    comptime Pointer: type,
+    comptime evalFn: *const fn (ptr: Pointer, w: *HttpResponse, r: *SpinRequest) void,
+) type {
+    return struct {
+        ptr: Pointer,
+        const Self = @This();
+        pub fn init(p: Pointer) Self {
+            return .{ .ptr = p };
+        }
+        // encapsulate the user-defined script into a member-function
+        pub fn eval(self: Self, w: *HttpResponse, r: *SpinRequest) void {
+            evalFn(self.ptr, w, r);
+        }
+    };
+}
+// holds reference to user-defined scripts
+pub fn attach(ud: anytype) void {
+    keeper = ud;
+}
+// a "null" script (zero case)
+const VanillaScript = struct {
+    pub fn init() VanillaScript {
+        return .{};
+    }
+    pub fn eval(self: *VanillaScript, w: *HttpResponse, r: *SpinRequest) void {
+        //todo add debug info
+        _ = self;
+        _ = w;
+        _ = r;
+    }
+};
+var vanilla = VanillaScript.init();
+var keeper = SpinComponent(*VanillaScript, VanillaScript.eval).init(&vanilla);
+fn script_runner(script: anytype, w: *HttpResponse, r: *SpinRequest) void {
+    script.eval(w, r);
+}
+// begin exports required by c/host
 var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
-fn GuestHttpStart(
+fn guestHttpStart(
     arg_method: i32,
     arg_uriAddr: WasiAddr,
     arg_uriLen: i32,
@@ -41,17 +71,9 @@ fn GuestHttpStart(
         arg_bodyAddr,
         arg_bodyLen,
     );
-    ////defer request.deinit();
     var response = HttpResponse.init(ally);
-    ////defer response.deinit();
-
-    //TODO use comptime to have compiler catch problems
-    //script.init(.{.attach = script.AttachOption.vanilla});
-    //script.eval(&response, &request);
-    //webfinger.eval(allocator, &response, &request);
-    //actor.eval(allocator, &response, &request);
-    //outbox.eval(allocator, &response, &request);
-    inbox.eval(ally, &response, &request);
+    // invoke the user-defined script
+    script_runner(&keeper, &response, &request);
 
     // address of memory shared to the C/host
     var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
@@ -80,7 +102,8 @@ fn GuestHttpStart(
 
     return re;
 }
-fn CanonicalAbiRealloc(
+
+fn canonicalAbiRealloc(
     arg_ptr: ?*anyopaque,
     arg_oldsz: usize,
     arg_align: usize,
@@ -107,7 +130,8 @@ fn CanonicalAbiRealloc(
     };
     return reslice.ptr;
 }
-fn CanonicalAbiFree(
+
+fn canonicalAbiFree(
     arg_ptr: ?*anyopaque,
     arg_size: usize,
     arg_align: usize,
@@ -145,7 +169,7 @@ const xdata = struct {
     }
     // release memory that was allocated by CanonicalAbiAlloc
     pub fn deinit(self: *Self) void {
-        CanonicalAbiFree(self.ptr, self.len, 1);
+        canonicalAbiFree(self.ptr, self.len, 1);
         self.len = 0;
         self.ptr = null;
     }
@@ -160,8 +184,6 @@ fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
     var rownum: usize = 0;
     while (rownum < max) : (rownum +%= 1) {
         var tup = record[rownum];
-        //const fld = try ally.dupeZ(u8, tup.f0.ptr[0..tup.f0.len]);
-        //const val = try ally.dupeZ(u8, tup.f1.ptr[0..tup.f1.len]);
 
         // some arbitrary limits on field lengths (until we achieve sig header)
         std.debug.assert(tup.f0.len < 64);
@@ -174,11 +196,11 @@ fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
         list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
 
         // free old kv
-        CanonicalAbiFree(@ptrCast(?*anyopaque, tup.f0.ptr), tup.f0.len, 1);
-        CanonicalAbiFree(@ptrCast(?*anyopaque, tup.f1.ptr), tup.f1.len, 1);
+        canonicalAbiFree(@ptrCast(?*anyopaque, tup.f0.ptr), tup.f0.len, 1);
+        canonicalAbiFree(@ptrCast(?*anyopaque, tup.f1.ptr), tup.f1.len, 1);
     }
     // free the old array
-    CanonicalAbiFree(@ptrCast(?*anyopaque, record), max *% 16, 4);
+    canonicalAbiFree(@ptrCast(?*anyopaque, record), max *% 16, 4);
     return list;
 }
 
@@ -203,11 +225,11 @@ fn xmap(al: Allocator, addr: WasiAddr, len: i32) std.StringHashMap([]const u8) {
             @panic("FAIL map put, ");
         };
         // free old kv
-        CanonicalAbiFree(@ptrCast(?*anyopaque, kv.f0.ptr), kv.f0.len, 1);
-        CanonicalAbiFree(@ptrCast(?*anyopaque, kv.f1.ptr), kv.f1.len, 1);
+        canonicalAbiFree(@ptrCast(?*anyopaque, kv.f0.ptr), kv.f0.len, 1);
+        canonicalAbiFree(@ptrCast(?*anyopaque, kv.f1.ptr), kv.f1.len, 1);
     }
     // free the old array
-    CanonicalAbiFree(@ptrCast(?*anyopaque, record), count *% 16, 4);
+    canonicalAbiFree(@ptrCast(?*anyopaque, record), count *% 16, 4);
     return map;
 }
 
@@ -308,9 +330,6 @@ pub const SpinRequest = struct {
     // TODO relying on arena to free at the end
     //pub fn deinit(self: *Self) void {
     // TODO bus error (maybe refactor to non-allocating for now)
-    ////self.body.deinit(self.ally);
-    ////self.headers.deinit(self.ally);
-    ////self.params.deinit(self.ally);
     //}
 };
 
