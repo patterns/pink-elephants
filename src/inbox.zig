@@ -1,6 +1,4 @@
 const std = @import("std");
-const spn = @import("spin.zig");
-
 pub const std_options = struct {
     pub const log_level = .debug;
 };
@@ -9,18 +7,18 @@ pub fn main() void {
 }
 
 comptime {
-    @export(spn.guestHttpStart, .{ .name = "handle-http-request", .linkage = .Strong });
-    @export(spn.canonicalAbiRealloc, .{ .name = "canonical_abi_realloc", .linkage = .Strong });
-    @export(spn.canonicalAbiFree, .{ .name = "canonical_abi_free", .linkage = .Strong });
+    @export(@import("spin/lib.zig").guestHttpStart, .{ .name = "handle-http-request", .linkage = .Strong });
+    @export(@import("spin/lib.zig").canonicalAbiRealloc, .{ .name = "canonical_abi_realloc", .linkage = .Strong });
+    @export(@import("spin/lib.zig").canonicalAbiFree, .{ .name = "canonical_abi_free", .linkage = .Strong });
 }
+const spn = @import("spin.zig");
+const str = @import("web/strings.zig");
+const status = @import("web/status.zig");
+const config = spn.Config; //@import("spin/config.zig");
+const redis = spn.Redis; //@import("spin/redis.zig");
+const vfr = @import("verifier/verifier.zig");
 
-const str = @import("strings.zig");
-const status = @import("status.zig");
-const config = @import("config.zig");
-const redis = @import("redis.zig");
-const vfr = @import("verifier.zig");
-
-const phi = @import("phi.zig");
+const phi = @import("web/phi.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
 

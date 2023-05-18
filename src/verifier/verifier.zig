@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const lib = @import("spin.zig");
-const phi = @import("phi.zig");
+const lib = @import("../spin.zig");
+const phi = @import("../web/phi.zig");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const log = std.log;

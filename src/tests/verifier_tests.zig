@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const lib = @import("../lib.zig");
-const vfr = @import("../verifier.zig");
-const phi = @import("../phi.zig");
+const lib = @import("../spin.zig");
+const vfr = @import("../verifier/verifier.zig");
+const phi = @import("../web/phi.zig");
 
 const expect = std.testing.expect;
 const expectErr = std.testing.expectError;
