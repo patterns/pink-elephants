@@ -31,7 +31,7 @@ jobs:
         run: zig build test
 
       - name: Build components
-        run: zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
+        run: zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall --verbose-cc --verbose-link
 
       - name: Save wasm binary
         uses: actions/upload-artifact@v3
