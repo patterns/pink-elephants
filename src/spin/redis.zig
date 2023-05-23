@@ -49,7 +49,7 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     defer ally.free(cpayload);
 
     // duplicate id to sentinel-terminated
-    const key = tree.root.Object.get("id").?.String;
+    const key = tree.root.object.get("id").?.string;
     const ckey = try ally.dupeZ(u8, key);
     defer ally.free(ckey);
 

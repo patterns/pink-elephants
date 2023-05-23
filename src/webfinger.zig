@@ -1,47 +1,38 @@
 const std = @import("std");
-pub const std_options = struct {
-    pub const log_level = .debug;
-};
-pub fn main() void {
-    std.debug.print("placeholder ", .{});
-}
 
-//comptime {
-//    @export(@import("spin/lib.zig").guestHttpStart, .{ .name = "handle-http-request", .linkage = .Strong });
-//    @export(@import("spin/lib.zig").canonicalAbiRealloc, .{ .name = "canonical_abi_realloc", .linkage = .Strong });
-//    @export(@import("spin/lib.zig").canonicalAbiFree, .{ .name = "canonical_abi_free", .linkage = .Strong });
-//}
-const spn = @import("spin.zig");
+const spn = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
 const config = spn.Config;
+comptime {
+    spn.attach(webfingerScript);
+}
+pub fn main() void {
+    std.debug.print("placeholder ", .{});
+}
+
 const webfinger_json = @embedFile("webfinger.json");
+fn webfingerScript(ally: Allocator, w: *spn.HttpResponse, req: *spn.SpinRequest) void {
+    if (req.method != 0) return status.nomethod(w);
 
-// implement interface
-const Webfinger = struct {
-    pub fn eval(self: *Webfinger, ally: Allocator, w: *spn.HttpResponse, req: *spn.SpinRequest) void {
-        _ = self;
-        if (req.method != 0) return status.nomethod(w);
+    const unknown = unknownResource(ally, req.uri);
+    if (unknown) return status.bad(w);
 
-        const unknown = unknownResource(ally, req.uri);
-        if (unknown) return status.bad(w);
+    w.headers.put("Content-Type", "application/jrd+json") catch {
+        log.err("ERROR response header", .{});
+    };
+    w.headers.put("Access-Control-Allow-Origin", "*") catch {
+        log.err("ERROR response header", .{});
+    };
+    w.body.appendSlice(webfinger_json) catch {
+        log.err("ERROR webfinger body", .{});
+        return status.internal(w);
+    };
 
-        w.headers.put("Content-Type", "application/jrd+json") catch {
-            log.err("ERROR response header", .{});
-        };
-        w.headers.put("Access-Control-Allow-Origin", "*") catch {
-            log.err("ERROR response header", .{});
-        };
-        w.body.appendSlice(webfinger_json) catch {
-            log.err("ERROR webfinger body", .{});
-            return status.internal(w);
-        };
-
-        status.ok(w);
-    }
-};
+    status.ok(w);
+}
 
 // check query param 'resource'
 fn unknownResource(allocator: Allocator, ur: []const u8) bool {

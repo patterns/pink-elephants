@@ -126,19 +126,19 @@ pub fn build(b: *std.Build) void {
 
     // webfinger component
     {
-        //const wfexe = b.addExecutable(.{
-        //    .name = "webfinger",
-        //    .root_source_file = .{ .path = "src/webfinger.zig" },
-        //    .target = target,
-        //    .optimize = optimize,
-        //});
-        //wfexe.linkLibC();
-        //wfexe.linkLibrary(lib);
-        //wfexe.addIncludePath("./deps/mbedtls/include");
-        //wfexe.addModule("pkcs1", pkcs1);
-        //wfexe.single_threaded = true;
-        //wfexe.export_symbol_names = &export_names;
-        //b.installArtifact(wfexe);
+        const wfexe = b.addExecutable(.{
+            .name = "webfinger",
+            .root_source_file = .{ .path = "src/webfinger.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        wfexe.linkLibC();
+        wfexe.linkLibrary(lib);
+        wfexe.addIncludePath("./deps/mbedtls/include");
+        wfexe.addModule("pkcs1", pkcs1);
+        wfexe.single_threaded = true;
+        wfexe.export_symbol_names = &export_names;
+        b.installArtifact(wfexe);
     }
 
 }

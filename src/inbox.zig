@@ -13,22 +13,19 @@ const log = std.log;
 
 //const custom_handler = blk:{
 //    return spin.Runner.attachScript(struct {
-fn demo_check(w: *spin.HttpResponse, r: *spin.SpinRequest) void {
+fn demo_check(ally: Allocator, w: *spin.HttpResponse, r: *spin.SpinRequest) void {
     _ = r;
+    _ = ally;
     status.dependency(w);
 }
 //    }.demo_check);
 //    break :blk handler;
 //};
 comptime {
-    spin.Keeper.attach(demo_check);
-    //    const lib = @import("spin/lib.zig");
-    //    @export(lib.guestHttpStart, .{.name = "handle-http-request"});
-    //    @export(lib.canAbiRealloc, .{.name = "canonical_abi_realloc"});
-    //    @export(lib.canAbiFree, .{.name = "canonical_abi_free"});
+    spin.attach(inboxScript);
 }
 
-pub fn eval(ally: Allocator, w: *spin.HttpResponse, req: *spin.SpinRequest) void {
+pub fn inboxScript(ally: Allocator, w: *spin.HttpResponse, req: *spin.SpinRequest) void {
     const bad = unknownSignature(ally, req.*) catch true;
 
     if (bad) {

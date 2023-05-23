@@ -5,23 +5,25 @@ pub const Config = @import("config.zig");
 const Allocator = std.mem.Allocator;
 
 // signature for scripters to write custom handlers (in zig)
-pub const EvalFn = *const fn (w: *HttpResponse, r: *SpinRequest) void;
-pub const Keeper = blk: {
+pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *SpinRequest) void;
+pub fn attach(comptime h: EvalFn) void {
+    nested.attacher(h);
+}
+const nested = blk: {
     // static event handlers
-    comptime var scripts: EvalFn = undefined;
-    const nested = struct {
+    var scripts: EvalFn = vanilla;
+    const keeper = struct {
         // wire-up user defined script to be run
-        pub fn attach(comptime h: EvalFn) void {
+        pub fn attacher(comptime h: EvalFn) void {
             scripts = h;
         }
-        fn eval(w: *HttpResponse, r: *SpinRequest) void {
-            //if (scripts == undefined) unreachable;
-            scripts(w, r);
+        // life cycle step
+        fn eval(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
+            scripts(ally, w, r);
         }
     };
-    break :blk nested;
+    break :blk keeper;
 };
-
 // static request in life cycle
 var request: SpinRequest = undefined;
 var response: HttpResponse = undefined;
@@ -54,6 +56,17 @@ fn preprocess(
     );
     // new response writer in life cycle
     response = HttpResponse.init(ally);
+
+    //todo what is our take on allocator
+}
+fn vanilla(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
+    _ = r;
+    _ = ally;
+    w.body.appendSlice("vanilla placeholder") catch {
+        w.status = 501;
+        return;
+    };
+    w.status = 200;
 }
 
 fn guestHttpStart(
@@ -85,7 +98,7 @@ fn guestHttpStart(
         arg_bodyAddr,
         arg_bodyLen,
     );
-    Keeper.eval(&response, &request);
+    nested.eval(ally, &response, &request);
 
     // address of memory shared to the C/host
     var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
