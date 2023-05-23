@@ -1,6 +1,6 @@
 name: nightly
 env:
-  ZIG_VERSION: 0.11.0-dev.3202+378264d40
+  ZIG_VERSION: 0.11.0-dev.3268+9d4d96ca9
 
 on:
   pull_request:
@@ -31,7 +31,7 @@ jobs:
         run: zig build test
 
       - name: Build components
-        run: zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall --verbose-cc --verbose-link
+        run: zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
 
       - name: Save wasm binary
         uses: actions/upload-artifact@v3
