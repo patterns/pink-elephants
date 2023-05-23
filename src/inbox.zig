@@ -1,62 +1,59 @@
-const std = @import("std");
-const spn = @import("spin.zig");
-
-pub const std_options = struct {
-    pub const log_level = .debug;
-};
+//pub const std_options = struct { pub const log_level = .debug; };
 pub fn main() void {
-    std.debug.print("placeholder ", .{});
+    @import("std").debug.print("replace with lib step?", .{});
 }
-
-comptime {
-    @export(spn.guestHttpStart, .{ .name = "handle-http-request", .linkage = .Strong });
-    @export(spn.canonicalAbiRealloc, .{ .name = "canonical_abi_realloc", .linkage = .Strong });
-    @export(spn.canonicalAbiFree, .{ .name = "canonical_abi_free", .linkage = .Strong });
-}
-
-const str = @import("strings.zig");
-const status = @import("status.zig");
-const config = @import("config.zig");
-const redis = @import("redis.zig");
-const vfr = @import("verifier.zig");
-
-const phi = @import("phi.zig");
+const std = @import("std");
+const spin = @import("spin/lib.zig");
+const str = @import("web/strings.zig");
+const status = @import("web/status.zig");
+const vfr = @import("verifier/verifier.zig");
+const phi = @import("web/phi.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
 
-// implement interface
-const Inbox = struct {
-    pub fn eval(self: *Inbox, ally: Allocator, w: *spn.HttpResponse, req: *spn.SpinRequest) void {
-        _ = self;
-        const bad = unknownSignature(ally, req.*) catch true;
+//const custom_handler = blk:{
+//    return spin.Runner.attachScript(struct {
+fn demo_check(ally: Allocator, w: *spin.HttpResponse, r: *spin.SpinRequest) void {
+    _ = r;
+    _ = ally;
+    status.dependency(w);
+}
+//    }.demo_check);
+//    break :blk handler;
+//};
+comptime {
+    spin.attach(inboxScript);
+}
 
-        if (bad) {
-            return status.forbidden(w);
-        }
+pub fn inboxScript(ally: Allocator, w: *spin.HttpResponse, req: *spin.SpinRequest) void {
+    const bad = unknownSignature(ally, req.*) catch true;
 
-        //TODO limit body content to 1MB
-        var tree = str.toTree(ally, req.body) catch {
-            log.err("unexpected json format\n", .{});
-            return status.unprocessable(w);
-        };
-        defer tree.deinit();
-
-        // capture for now (build processing later/next)
-        ////redis.enqueue(allocator, logev) catch {
-        redis.debugDetail(ally, .{ .tree = tree, .req = req }) catch {
-            log.err("save failed", .{});
-            return status.internal(w);
-        };
-
-        w.headers.put("Content-Type", "application/json") catch {
-            log.err("inbox header, OutOfMem", .{});
-        };
-
-        status.ok(w);
+    if (bad) {
+        return status.forbidden(w);
     }
-};
 
-fn unknownSignature(ally: Allocator, req: spn.SpinRequest) !bool {
+    //TODO limit body content to 1MB
+    var tree = str.toTree(ally, req.body) catch {
+        log.err("unexpected json format\n", .{});
+        return status.unprocessable(w);
+    };
+    defer tree.deinit();
+
+    // capture for now (build processing later/next)
+    ////spin.Redis.enqueue(allocator, logev) catch {
+    spin.Redis.debugDetail(ally, .{ .tree = tree, .req = req }) catch {
+        log.err("save failed", .{});
+        return status.internal(w);
+    };
+
+    w.headers.put("Content-Type", "application/json") catch {
+        log.err("inbox header, OutOfMem", .{});
+    };
+
+    status.ok(w);
+}
+
+fn unknownSignature(ally: Allocator, req: spin.SpinRequest) !bool {
     const bad = true;
 
     var placeholder: phi.RawHeaders = undefined;

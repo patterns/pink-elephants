@@ -1,48 +1,34 @@
 const std = @import("std");
-const phi = @import("phi.zig");
+const phi = @import("../web/phi.zig");
+pub const Redis = @import("redis.zig");
+pub const Config = @import("config.zig");
 const Allocator = std.mem.Allocator;
 
-// interface
-pub fn SpinComponent(
-    comptime Pointer: type,
-    comptime evalFn: *const fn (ptr: Pointer, w: *HttpResponse, r: *SpinRequest) void,
-) type {
-    return struct {
-        ptr: Pointer,
-        const Self = @This();
-        pub fn init(p: Pointer) Self {
-            return .{ .ptr = p };
+// signature for scripters to write custom handlers (in zig)
+pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *SpinRequest) void;
+pub fn attach(comptime h: EvalFn) void {
+    nested.attacher(h);
+}
+const nested = blk: {
+    // static event handlers
+    var scripts: EvalFn = vanilla;
+    const keeper = struct {
+        // wire-up user defined script to be run
+        pub fn attacher(comptime h: EvalFn) void {
+            scripts = h;
         }
-        // encapsulate the user-defined script into a member-function
-        pub fn eval(self: Self, w: *HttpResponse, r: *SpinRequest) void {
-            evalFn(self.ptr, w, r);
+        // life cycle step
+        fn eval(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
+            scripts(ally, w, r);
         }
     };
-}
-// holds reference to user-defined scripts
-pub fn attach(ud: anytype) void {
-    keeper = ud;
-}
-// a "null" script (zero case)
-const VanillaScript = struct {
-    pub fn init() VanillaScript {
-        return .{};
-    }
-    pub fn eval(self: *VanillaScript, w: *HttpResponse, r: *SpinRequest) void {
-        //todo add debug info
-        _ = self;
-        _ = w;
-        _ = r;
-    }
+    break :blk keeper;
 };
-var vanilla = VanillaScript.init();
-var keeper = SpinComponent(*VanillaScript, VanillaScript.eval).init(&vanilla);
-fn script_runner(script: anytype, w: *HttpResponse, r: *SpinRequest) void {
-    script.eval(w, r);
-}
-// begin exports required by c/host
-var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
-fn guestHttpStart(
+// static request in life cycle
+var request: SpinRequest = undefined;
+var response: HttpResponse = undefined;
+fn preprocess(
+    ally: Allocator,
     arg_method: i32,
     arg_uriAddr: WasiAddr,
     arg_uriLen: i32,
@@ -53,12 +39,9 @@ fn guestHttpStart(
     arg_body: i32,
     arg_bodyAddr: WasiAddr,
     arg_bodyLen: i32,
-) callconv(.C) WasiAddr {
-    var arena = std.heap.ArenaAllocator.init(std.heap.wasm_allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
-    var request = SpinRequest.init(
+) void {
+    // new request from received C/host references
+    request = SpinRequest.init(
         ally,
         arg_method,
         arg_uriAddr,
@@ -71,9 +54,51 @@ fn guestHttpStart(
         arg_bodyAddr,
         arg_bodyLen,
     );
-    var response = HttpResponse.init(ally);
-    // invoke the user-defined script
-    script_runner(&keeper, &response, &request);
+    // new response writer in life cycle
+    response = HttpResponse.init(ally);
+
+    //todo what is our take on allocator
+}
+fn vanilla(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
+    _ = r;
+    _ = ally;
+    w.body.appendSlice("vanilla placeholder") catch {
+        w.status = 501;
+        return;
+    };
+    w.status = 200;
+}
+
+fn guestHttpStart(
+    arg_method: i32,
+    arg_uriAddr: WasiAddr,
+    arg_uriLen: i32,
+    arg_hdrAddr: WasiAddr,
+    arg_hdrLen: i32,
+    arg_paramAddr: WasiAddr,
+    arg_paramLen: i32,
+    arg_body: i32,
+    arg_bodyAddr: WasiAddr,
+    arg_bodyLen: i32,
+) callconv(.C) WasiAddr {
+    // life cycle begins for our service routine
+    var arena = std.heap.ArenaAllocator.init(std.heap.wasm_allocator);
+    defer arena.deinit();
+    const ally = arena.allocator();
+    preprocess(
+        ally,
+        arg_method,
+        arg_uriAddr,
+        arg_uriLen,
+        arg_hdrAddr,
+        arg_hdrLen,
+        arg_paramAddr,
+        arg_paramLen,
+        arg_body,
+        arg_bodyAddr,
+        arg_bodyLen,
+    );
+    nested.eval(ally, &response, &request);
 
     // address of memory shared to the C/host
     var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
@@ -83,7 +108,7 @@ fn guestHttpStart(
     if (response.headers.count() != 0) {
         var ar = response.headers_as_array(ally).items;
         @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 12)).* = @bitCast(i32, ar.len);
+        @intToPtr([*c]i32, @intCast(usize, re + 12)).* = @intCast(i32, ar.len);
         @intToPtr([*c]i32, @intCast(usize, re + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
     } else {
         @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 0;
@@ -94,7 +119,7 @@ fn guestHttpStart(
             @panic("FAIL response OutOfMem");
         };
         @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 24)).* = @bitCast(i32, cp.len);
+        @intToPtr([*c]i32, @intCast(usize, re + 24)).* = @intCast(i32, cp.len);
         @intToPtr([*c]i32, @intCast(usize, re + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
     } else {
         @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 0;
@@ -102,8 +127,14 @@ fn guestHttpStart(
 
     return re;
 }
-
-fn canonicalAbiRealloc(
+// begin exports required by C/host
+comptime {
+    @export(guestHttpStart, .{ .name = "handle-http-request" });
+    @export(canAbiRealloc, .{ .name = "canonical_abi_realloc" });
+    @export(canAbiFree, .{ .name = "canonical_abi_free" });
+}
+var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
+fn canAbiRealloc(
     arg_ptr: ?*anyopaque,
     arg_oldsz: usize,
     arg_align: usize,
@@ -131,7 +162,7 @@ fn canonicalAbiRealloc(
     return reslice.ptr;
 }
 
-fn canonicalAbiFree(
+fn canAbiFree(
     arg_ptr: ?*anyopaque,
     arg_size: usize,
     arg_align: usize,
@@ -169,7 +200,7 @@ const xdata = struct {
     }
     // release memory that was allocated by CanonicalAbiAlloc
     pub fn deinit(self: *Self) void {
-        canonicalAbiFree(self.ptr, self.len, 1);
+        canAbiFree(self.ptr, self.len, 1);
         self.len = 0;
         self.ptr = null;
     }
@@ -196,11 +227,11 @@ fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
         list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
 
         // free old kv
-        canonicalAbiFree(@ptrCast(?*anyopaque, tup.f0.ptr), tup.f0.len, 1);
-        canonicalAbiFree(@ptrCast(?*anyopaque, tup.f1.ptr), tup.f1.len, 1);
+        canAbiFree(@ptrCast(?*anyopaque, tup.f0.ptr), tup.f0.len, 1);
+        canAbiFree(@ptrCast(?*anyopaque, tup.f1.ptr), tup.f1.len, 1);
     }
     // free the old array
-    canonicalAbiFree(@ptrCast(?*anyopaque, record), max *% 16, 4);
+    canAbiFree(@ptrCast(?*anyopaque, record), max *% 16, 4);
     return list;
 }
 
@@ -225,11 +256,11 @@ fn xmap(al: Allocator, addr: WasiAddr, len: i32) std.StringHashMap([]const u8) {
             @panic("FAIL map put, ");
         };
         // free old kv
-        canonicalAbiFree(@ptrCast(?*anyopaque, kv.f0.ptr), kv.f0.len, 1);
-        canonicalAbiFree(@ptrCast(?*anyopaque, kv.f1.ptr), kv.f1.len, 1);
+        canAbiFree(@ptrCast(?*anyopaque, kv.f0.ptr), kv.f0.len, 1);
+        canAbiFree(@ptrCast(?*anyopaque, kv.f1.ptr), kv.f1.len, 1);
     }
     // free the old array
-    canonicalAbiFree(@ptrCast(?*anyopaque, record), count *% 16, 4);
+    canAbiFree(@ptrCast(?*anyopaque, record), count *% 16, 4);
     return map;
 }
 
@@ -334,7 +365,7 @@ pub const SpinRequest = struct {
 };
 
 // C/interop address
-const WasiAddr = i32;
+pub const WasiAddr = i32;
 // "anon" struct just for address to tuple C/interop
 const WasiStr = extern struct { ptr: [*c]u8, len: usize };
 const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };

@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const lib = @import("../lib.zig");
-const vfr = @import("../verifier.zig");
-const phi = @import("../phi.zig");
+const spn = @import("../spin.zig");
+const vfr = @import("../verifier/verifier.zig");
+const phi = @import("../web/phi.zig");
 
 const expect = std.testing.expect;
 const expectErr = std.testing.expectError;
@@ -16,7 +16,7 @@ test "signature base input string minimal" {
     defer arena.deinit();
     const ally = arena.allocator();
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/foo?param=value&pet=dog",
@@ -52,7 +52,7 @@ test "signature base input string regular" {
     defer arena.deinit();
     const ally = arena.allocator();
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/foo?param=value&pet=dog",
@@ -89,7 +89,7 @@ test "min signature base in the form of SHA256 sum" {
     defer arena.deinit();
     const ally = arena.allocator();
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/foo?param=value&pet=dog",
@@ -126,7 +126,7 @@ test "reg signature base in the form of SHA256 sum" {
     defer arena.deinit();
     const ally = arena.allocator();
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/foo?param=value&pet=dog",
@@ -244,7 +244,7 @@ test "verify peop" {
     const ally = arena.allocator();
 
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/users/oatmeal/inbox",
@@ -294,7 +294,7 @@ test "verifyRsa as public module" {
     const ally = arena.allocator();
 
     // sim rcv request
-    var rcv = lib.SpinRequest{
+    var rcv = spn.SpinRequest{
         .ally = ally,
         .method = @enumToInt(vfr.Verb.post),
         .uri = "/inbox",

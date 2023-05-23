@@ -10,9 +10,9 @@ pub fn toTree(ally: Allocator, ls: *std.io.FixedBufferStream([]u8)) !std.json.Va
     var bb = try rd.readBoundedBytes(1024);
     const body = bb.constSlice();
 
-    const sane_json = std.json.validate(body);
+    const sane_json = try std.json.validate(ally, body);
     if (!sane_json) return error.Malformed;
-    var parser = std.json.Parser.init(ally, false);
+    var parser = std.json.Parser.init(ally, std.json.AllocWhen.alloc_if_needed);
     defer parser.deinit();
     var tree = parser.parse(body) catch return error.Malformed;
     return tree;

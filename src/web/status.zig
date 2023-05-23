@@ -1,5 +1,5 @@
 const std = @import("std");
-const lib = @import("spin.zig");
+const lib = @import("../spin/lib.zig");
 
 pub fn nomethod(w: *lib.HttpResponse) void {
     code(w, std.http.Status.method_not_allowed);

@@ -1,0 +1,13 @@
+{
+	"subject": "acct:xiphosura@example.dev",
+	"aliases": [
+		"https://example.dev/@xiphosura",
+		"https://example.dev/u/xiphosura"
+	],
+	"links": [{
+			"rel": "self",
+			"type": "application/activity+json",
+			"href": "https://example.dev/u/xiphosura"
+		}
+	]
+}

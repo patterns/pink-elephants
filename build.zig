@@ -81,7 +81,7 @@ pub fn build(b: *std.Build) void {
 
     // internal module for zig code to consume
     const pkcs1 = b.createModule(
-        .{ .source_file = .{ .path = "src/pkcs1.zig" }},
+        .{ .source_file = .{ .path = "src/verifier/pkcs1.zig" }},
     );
 
 
@@ -109,42 +109,36 @@ pub fn build(b: *std.Build) void {
 
     // inbox component
     {
-    const exe = b.addExecutable(.{
-        .name = "inbox",
-        .root_source_file = .{ .path = "src/inbox.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.linkLibC();
-    exe.linkLibrary(lib);
-    exe.addIncludePath("./deps/mbedtls/include");
-    exe.addModule("pkcs1", pkcs1);
-    exe.single_threaded = true;
-    exe.export_symbol_names = &export_names;
-    b.installArtifact(exe);
-
-    // This *creates* a Run step in the build graph, to be executed when another
-    // step is evaluated that depends on it. The next line below will establish
-    // such a dependency.
-    const run_cmd = b.addRunArtifact(exe);
-
-    // By making the run step depend on the install step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    // This is not necessary, however, if the application depends on other installed
-    // files, this ensures they will be present and in the expected location.
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
+        const inexe = b.addExecutable(.{
+            .name = "inbox",
+            .root_source_file = .{ .path = "src/inbox.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        inexe.linkLibC();
+        inexe.linkLibrary(lib);
+        inexe.addIncludePath("./deps/mbedtls/include");
+        inexe.addModule("pkcs1", pkcs1);
+        inexe.single_threaded = true;
+        inexe.export_symbol_names = &export_names;
+        b.installArtifact(inexe);
     }
 
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    // webfinger component
+    {
+        const wfexe = b.addExecutable(.{
+            .name = "webfinger",
+            .root_source_file = .{ .path = "src/webfinger.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        wfexe.linkLibC();
+        wfexe.linkLibrary(lib);
+        wfexe.addIncludePath("./deps/mbedtls/include");
+        wfexe.addModule("pkcs1", pkcs1);
+        wfexe.single_threaded = true;
+        wfexe.export_symbol_names = &export_names;
+        b.installArtifact(wfexe);
     }
 
 }
