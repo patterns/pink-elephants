@@ -1,75 +1,24 @@
 const std = @import("std");
-const phi = @import("../web/phi.zig");
-pub const Redis = @import("redis.zig");
-pub const Config = @import("config.zig");
 const Allocator = std.mem.Allocator;
+// static allocator
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
 
 // signature for scripters to write custom handlers (in zig)
-pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *SpinRequest) void;
-pub fn attach(comptime h: EvalFn) void {
-    nested.attacher(h);
-}
-const nested = blk: {
-    // static event handlers
-    var scripts: EvalFn = vanilla;
-    const keeper = struct {
-        // wire-up user defined script to be run
-        pub fn attacher(comptime h: EvalFn) void {
-            scripts = h;
-        }
-        // life cycle step
-        fn eval(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
-            scripts(ally, w, r);
-        }
-    };
-    break :blk keeper;
-};
-// static request in life cycle
-var request: SpinRequest = undefined;
-var response: HttpResponse = undefined;
-fn preprocess(
-    ally: Allocator,
-    arg_method: i32,
-    arg_uriAddr: WasiAddr,
-    arg_uriLen: i32,
-    arg_hdrAddr: WasiAddr,
-    arg_hdrLen: i32,
-    arg_paramAddr: WasiAddr,
-    arg_paramLen: i32,
-    arg_body: i32,
-    arg_bodyAddr: WasiAddr,
-    arg_bodyLen: i32,
-) void {
-    // new request from received C/host references
-    request = SpinRequest.init(
-        ally,
-        arg_method,
-        arg_uriAddr,
-        arg_uriLen,
-        arg_hdrAddr,
-        arg_hdrLen,
-        arg_paramAddr,
-        arg_paramLen,
-        arg_body,
-        arg_bodyAddr,
-        arg_bodyLen,
-    );
-    // new response writer in life cycle
-    response = HttpResponse.init(ally);
-
-    //todo what is our take on allocator
-}
-fn vanilla(ally: Allocator, w: *HttpResponse, r: *SpinRequest) void {
-    _ = r;
-    _ = ally;
-    w.body.appendSlice("vanilla placeholder") catch {
-        w.status = 501;
-        return;
-    };
-    w.status = 200;
+pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *Request) void;
+pub fn handle(comptime h: EvalFn) void {
+    nested.next(h);
 }
 
-fn guestHttpStart(
+// begin exports required by C/host
+comptime {
+    @export(guestHttpInit, .{ .name = "handle-http-request" });
+    @export(canAbiRealloc, .{ .name = "canonical_abi_realloc" });
+    @export(canAbiFree, .{ .name = "canonical_abi_free" });
+}
+var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
+// entry point by C/host to guest code
+fn guestHttpInit(
     arg_method: i32,
     arg_uriAddr: WasiAddr,
     arg_uriLen: i32,
@@ -81,10 +30,10 @@ fn guestHttpStart(
     arg_bodyAddr: WasiAddr,
     arg_bodyLen: i32,
 ) callconv(.C) WasiAddr {
-    // life cycle begins for our service routine
-    var arena = std.heap.ArenaAllocator.init(std.heap.wasm_allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const ally = arena.allocator();
+    // life cycle begins
     preprocess(
         ally,
         arg_method,
@@ -127,54 +76,105 @@ fn guestHttpStart(
 
     return re;
 }
-// begin exports required by C/host
-comptime {
-    @export(guestHttpStart, .{ .name = "handle-http-request" });
-    @export(canAbiRealloc, .{ .name = "canonical_abi_realloc" });
-    @export(canAbiFree, .{ .name = "canonical_abi_free" });
-}
-var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
+
 fn canAbiRealloc(
-    arg_ptr: ?*anyopaque,
+    arg_ptr: ?[*]u8,
     arg_oldsz: usize,
     arg_align: usize,
     arg_newsz: usize,
-) callconv(.C) ?*anyopaque {
+) callconv(.C) ?[*]u8 {
     // zero means to _free_ in ziglang
     // TODO (need to confirm behavior from wit-bindgen version)
-    if (arg_newsz == @intCast(usize, 0)) {
-        return @intToPtr(?*anyopaque, arg_align);
+    if (arg_newsz == 0) {
+        return @intToPtr(?[*]u8, arg_align);
     }
 
-    const allocator = std.heap.wasm_allocator;
     // null means to _allocate_
     if (arg_ptr == null) {
-        var newslice = allocator.alloc(u8, arg_newsz) catch {
-            @panic("FAIL alloc OutOfMem");
-        };
+        const newslice = allocator.alloc(u8, arg_newsz) catch return null;
         return newslice.ptr;
     }
 
-    var slice = @ptrCast([*]u8, arg_ptr.?)[0..arg_oldsz];
-    var reslice = allocator.realloc(slice, arg_newsz) catch {
-        @panic("FAIL realloc OutOfMem");
-    };
+    var slice = (arg_ptr.?)[0..arg_oldsz];
+    const reslice = allocator.realloc(slice, arg_newsz) catch return null;
     return reslice.ptr;
 }
 
-fn canAbiFree(
-    arg_ptr: ?*anyopaque,
-    arg_size: usize,
-    arg_align: usize,
-) callconv(.C) void {
+fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) void {
     _ = arg_align;
-    if (arg_size == @intCast(usize, 0)) return;
+    if (arg_size == 0) return;
     if (arg_ptr == null) return;
 
-    const slice = @ptrCast([*]u8, arg_ptr.?)[0..arg_size];
-    std.heap.wasm_allocator.free(slice);
+    allocator.free((arg_ptr.?)[0..arg_size]);
 }
 // end exports to comply with host
+
+// namespace nesting (private in our case)
+const nested = blk: {
+    // static event handlers
+    var scripts: EvalFn = vanilla;
+    const keeper = struct {
+        // wire-up user defined script to be run
+        fn next(comptime h: EvalFn) void {
+            scripts = h;
+        }
+        // life cycle step
+        fn eval(ally: Allocator, w: *HttpResponse, r: *Request) void {
+            scripts(ally, w, r);
+        }
+    };
+    break :blk keeper;
+};
+
+// static request in life cycle
+var request: Request = undefined;
+var response: HttpResponse = undefined;
+// life cycle pre-process step
+fn preprocess(
+    ally: Allocator,
+    arg_method: i32,
+    arg_uriAddr: WasiAddr,
+    arg_uriLen: i32,
+    arg_hdrAddr: WasiAddr,
+    arg_hdrLen: i32,
+    arg_paramAddr: WasiAddr,
+    arg_paramLen: i32,
+    arg_body: i32,
+    arg_bodyAddr: WasiAddr,
+    arg_bodyLen: i32,
+) void {
+    // ingest memory locations received from C/host
+    request = Request.init(
+        ally,
+        arg_method,
+        arg_uriAddr,
+        arg_uriLen,
+        arg_hdrAddr,
+        arg_hdrLen,
+        arg_paramAddr,
+        arg_paramLen,
+        arg_body,
+        arg_bodyAddr,
+        arg_bodyLen,
+    );
+    // new response writer in life cycle
+    response = HttpResponse.init(ally);
+}
+// "null" script (zero case template)
+fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
+    _ = r;
+    _ = ally;
+    w.body.appendSlice("vanilla placeholder") catch {
+        w.status = 501;
+        return;
+    };
+    w.status = 200;
+}
+
+// expose namespaces for convenience
+pub const redis = @import("redis.zig");
+pub const config = @import("config.zig");
+const phi = @import("../web/phi.zig");
 
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
@@ -191,9 +191,9 @@ const xdata = struct {
         };
     }
     // convert as slice w/ new memory (todo provide different return types explicitly i.e., dupeZ for the sentinel)
-    pub fn dupe(self: Self, allocator: Allocator) []u8 {
+    pub fn dupe(self: Self, ally: Allocator) []u8 {
         const old = self.ptr[0..self.len];
-        var cp = allocator.dupe(u8, old) catch {
+        var cp = ally.dupe(u8, old) catch {
             @panic("FAIL xdata dupe ");
         };
         return cp;
@@ -227,11 +227,11 @@ fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
         list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
 
         // free old kv
-        canAbiFree(@ptrCast(?*anyopaque, tup.f0.ptr), tup.f0.len, 1);
-        canAbiFree(@ptrCast(?*anyopaque, tup.f1.ptr), tup.f1.len, 1);
+        canAbiFree(@ptrCast(?[*]u8, tup.f0.ptr), tup.f0.len, 1);
+        canAbiFree(@ptrCast(?[*]u8, tup.f1.ptr), tup.f1.len, 1);
     }
     // free the old array
-    canAbiFree(@ptrCast(?*anyopaque, record), max *% 16, 4);
+    canAbiFree(@ptrCast(?[*]u8, record), max *% 16, 4);
     return list;
 }
 
@@ -256,11 +256,11 @@ fn xmap(al: Allocator, addr: WasiAddr, len: i32) std.StringHashMap([]const u8) {
             @panic("FAIL map put, ");
         };
         // free old kv
-        canAbiFree(@ptrCast(?*anyopaque, kv.f0.ptr), kv.f0.len, 1);
-        canAbiFree(@ptrCast(?*anyopaque, kv.f1.ptr), kv.f1.len, 1);
+        canAbiFree(@ptrCast(?[*]u8, kv.f0.ptr), kv.f0.len, 1);
+        canAbiFree(@ptrCast(?[*]u8, kv.f1.ptr), kv.f1.len, 1);
     }
     // free the old array
-    canAbiFree(@ptrCast(?*anyopaque, record), count *% 16, 4);
+    canAbiFree(@ptrCast(?[*]u8, record), count *% 16, 4);
     return map;
 }
 
@@ -271,22 +271,22 @@ pub const HttpResponse = struct {
     headers: std.StringHashMap([]const u8),
     body: std.ArrayList(u8),
 
-    pub fn init(allocator: Allocator) Self {
+    pub fn init(ally: Allocator) Self {
         return Self{
             .status = @enumToInt(std.http.Status.not_found),
-            .headers = std.StringHashMap([]const u8).init(allocator),
-            .body = std.ArrayList(u8).init(allocator),
+            .headers = std.StringHashMap([]const u8).init(ally),
+            .body = std.ArrayList(u8).init(ally),
         };
     }
     // conversion for C/interop
-    pub fn headers_as_array(self: Self, allocator: Allocator) std.ArrayList(WasiTuple) {
-        var arr = std.ArrayList(WasiTuple).init(allocator);
+    pub fn headers_as_array(self: Self, ally: Allocator) std.ArrayList(WasiTuple) {
+        var arr = std.ArrayList(WasiTuple).init(ally);
         var iter = self.headers.iterator();
         while (iter.next()) |entry| {
-            var key = allocator.dupe(u8, entry.key_ptr.*) catch {
+            var key = ally.dupe(u8, entry.key_ptr.*) catch {
                 @panic("FAIL headers key dupe");
             };
-            var val = allocator.dupe(u8, entry.value_ptr.*) catch {
+            var val = ally.dupe(u8, entry.value_ptr.*) catch {
                 @panic("FAIL headers val dupe");
             };
             var tup = WasiTuple{
@@ -308,7 +308,7 @@ pub const HttpResponse = struct {
 };
 
 // reader for ziglang consumer
-pub const SpinRequest = struct {
+pub const Request = struct {
     const Self = @This();
     ally: Allocator,
     method: HttpMethod,

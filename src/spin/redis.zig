@@ -74,7 +74,7 @@ fn saveEvent(redis: [:0]u8, key: [:0]u8, value: [:0]u8) void {
     var result: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
 
     // ask the host
-    set(@intCast(i32, @ptrToInt(redis.ptr)), @bitCast(i32, redis.len), @intCast(i32, @ptrToInt(key.ptr)), @bitCast(i32, key.len), @intCast(i32, @ptrToInt(value.ptr)), @bitCast(i32, value.len), result);
+    set(@intCast(i32, @ptrToInt(redis.ptr)), @intCast(i32, redis.len), @intCast(i32, @ptrToInt(key.ptr)), @intCast(i32, key.len), @intCast(i32, @ptrToInt(value.ptr)), @intCast(i32, value.len), result);
 
     const errcode = @intCast(usize, @intToPtr([*c]u8, @intCast(usize, result)).*);
     if (errcode == 0) {

@@ -11,37 +11,27 @@ const phi = @import("web/phi.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
 
-//const custom_handler = blk:{
-//    return spin.Runner.attachScript(struct {
-fn demo_check(ally: Allocator, w: *spin.HttpResponse, r: *spin.SpinRequest) void {
-    _ = r;
-    _ = ally;
-    status.dependency(w);
-}
-//    }.demo_check);
-//    break :blk handler;
-//};
 comptime {
-    spin.attach(inboxScript);
+    spin.handle(inboxScript);
 }
-
-pub fn inboxScript(ally: Allocator, w: *spin.HttpResponse, req: *spin.SpinRequest) void {
-    const bad = unknownSignature(ally, req.*) catch true;
+//const redis = @import("spin/redis.zig");
+fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
+    const bad = unknownSignature(ally, r.*) catch true;
 
     if (bad) {
         return status.forbidden(w);
     }
 
     //TODO limit body content to 1MB
-    var tree = str.toTree(ally, req.body) catch {
+    var tree = str.toTree(ally, r.body) catch {
         log.err("unexpected json format\n", .{});
         return status.unprocessable(w);
     };
     defer tree.deinit();
 
     // capture for now (build processing later/next)
-    ////spin.Redis.enqueue(allocator, logev) catch {
-    spin.Redis.debugDetail(ally, .{ .tree = tree, .req = req }) catch {
+    ////spin.redis.enqueue(allocator, logev) catch {
+    spin.redis.debugDetail(ally, .{ .tree = tree, .req = r }) catch {
         log.err("save failed", .{});
         return status.internal(w);
     };
@@ -53,7 +43,7 @@ pub fn inboxScript(ally: Allocator, w: *spin.HttpResponse, req: *spin.SpinReques
     status.ok(w);
 }
 
-fn unknownSignature(ally: Allocator, req: spin.SpinRequest) !bool {
+fn unknownSignature(ally: Allocator, r: spin.Request) !bool {
     const bad = true;
 
     var placeholder: phi.RawHeaders = undefined;
@@ -61,7 +51,7 @@ fn unknownSignature(ally: Allocator, req: spin.SpinRequest) !bool {
 
     try vfr.init(ally, placeholder);
     vfr.attachFetch(customVerifier);
-    const base = try vfr.fmtBase(req, wrap);
+    const base = try vfr.fmtBase(r, wrap);
     _ = try vfr.bySigner(ally, base);
 
     // checks passed

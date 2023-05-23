@@ -132,10 +132,10 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        wfexe.linkLibC();
-        wfexe.linkLibrary(lib);
-        wfexe.addIncludePath("./deps/mbedtls/include");
-        wfexe.addModule("pkcs1", pkcs1);
+        //wfexe.linkLibC();
+        //wfexe.linkLibrary(lib);
+        //wfexe.addIncludePath("./deps/mbedtls/include");
+        //wfexe.addModule("pkcs1", pkcs1);
         wfexe.single_threaded = true;
         wfexe.export_symbol_names = &export_names;
         b.installArtifact(wfexe);

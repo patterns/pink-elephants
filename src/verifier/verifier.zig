@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const lib = @import("../spin/lib.zig");
+const spin = @import("../spin/lib.zig");
 const phi = @import("../web/phi.zig");
 const mem = std.mem;
 const Allocator = mem.Allocator;
@@ -22,7 +22,7 @@ pub fn attachFetch(fetch: ProduceVerifierFn) void {
 }
 
 // calculate SHA256 sum of signature base input str
-pub fn sha256Base(req: lib.SpinRequest, headers: phi.HeaderList) ![sha256_len]u8 {
+pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
     var buffer: [sha256_len]u8 = undefined;
     const base = try impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
     std.crypto.hash.sha2.Sha256.hash(base, &buffer, .{});
@@ -30,7 +30,7 @@ pub fn sha256Base(req: lib.SpinRequest, headers: phi.HeaderList) ![sha256_len]u8
 }
 
 // reconstruct the signature base input str
-pub fn fmtBase(req: lib.SpinRequest, headers: phi.HeaderList) ![]const u8 {
+pub fn fmtBase(req: spin.Request, headers: phi.HeaderList) ![]const u8 {
     return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
 }
 
@@ -142,7 +142,7 @@ const ByRSASignerImpl = struct {
         //    self.parsed.bits());
 
         const pk_components = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
-        const public_key = try cert.rsa.PublicKey.fromBytes(pk_components.exponent, pk_components.modulus, ally);
+        const public_key = try cert.rsa.PublicKey.fromBytes(pk_components.exponent, pk_components.modulus);
 
         try cert.rsa.PSSSignature.verify(
             rsa_modulus_2048,

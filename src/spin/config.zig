@@ -41,7 +41,7 @@ pub fn get(key: []const u8) ?[]u8 {
         const start_val = start_ptr.*;
         const field_ptr = @intToPtr([*c]u8, @intCast(usize, start_val));
         const len_ptr = @intToPtr([*c]i32, @intCast(usize, address + 8));
-        const len_val = @bitCast(usize, len_ptr.*);
+        const len_val = @intCast(usize, len_ptr.*);
         setting = field_ptr[0..len_val];
         // TODO dupe, and deallocate old data
         // (except, if multiple random lookups, need local cache)
