@@ -1,0 +1,25 @@
+{
+	"@context": [
+		"https://www.w3.org/ns/activitystreams",
+		"https://w3id.org/security/v1"
+	],
+	"id": "https://example.dev/u/xiphosura",
+	"type": "Person",
+	"following": "https://example.dev/u/xiphosura/following",
+	"followers": "https://example.dev/u/xiphosura/followers",
+	"inbox": "https://example.dev/inbox",
+	"outbox": "https://example.dev/outbox",
+	"preferredUsername": "xiphosura",
+	"name": "cloud demo",
+	"summary": "fermyon cloud start demo",
+	"url": "https://gitub.com/patterns/pink-elephants",
+	"manuallyApprovesFollowers": true,
+	"discoverable": true,
+	"published": "2021-06-10T15:14:15Z",
+
+	"publicKey": {
+		"id": "https://example.dev/u/xiphosura#main-key",
+		"owner": "https://example.dev/u/xiphosura",
+		"publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsu5c5OjlLRjvJfFxLGIp\nYB3O6eB2QIvCGlHwMDywz9kbBjQS/D51g2GSSZ3jvHzB5MTN+ip+2MCLt31tVKX9\nD0eMPNBHFWS+bUvQ7jeD7kDvfTeLq7Wpd4y4s2Rk0oUXmAF6668erOR6eLYY7PTx\nd023AScvaTrT2Tjo1cyQ62bWokflYSztzEnrPun0gjd++HspUYdGMYK0j3+heGPs\nZUN0On8ZPFJI/4AR7lOsVY+6YCSVH72iNtBQQxPCndrW2JApnWODviPc8gmsi4ud\n2vkWJEo4aN77S0SY+O1A51Bqrnas+zQnzT7nGEBuNPC56/WusdObrGf88rs2ikzU\nfQIDAQAB\n-----END PUBLIC KEY-----\n"
+	}
+}

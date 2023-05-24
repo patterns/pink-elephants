@@ -132,13 +132,26 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        wfexe.linkLibC();
-        wfexe.linkLibrary(lib);
-        wfexe.addIncludePath("./deps/mbedtls/include");
-        wfexe.addModule("pkcs1", pkcs1);
+        //wfexe.linkLibC();
+        //wfexe.linkLibrary(lib);
+        //wfexe.addIncludePath("./deps/mbedtls/include");
+        //wfexe.addModule("pkcs1", pkcs1);
         wfexe.single_threaded = true;
         wfexe.export_symbol_names = &export_names;
         b.installArtifact(wfexe);
+    }
+
+    // actor component
+    {
+        const acexe = b.addExecutable(.{
+            .name = "actor",
+            .root_source_file = .{ .path = "src/actor.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        acexe.single_threaded = true;
+        acexe.export_symbol_names = &export_names;
+        b.installArtifact(acexe);
     }
 
 }

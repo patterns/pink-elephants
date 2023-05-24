@@ -1,23 +1,23 @@
 const std = @import("std");
 
-const spn = @import("spin/lib.zig");
+const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
-const config = spn.Config;
+
 comptime {
-    spn.attach(webfingerScript);
+    spin.handle(webfingerScript);
 }
 pub fn main() void {
     std.debug.print("placeholder ", .{});
 }
 
 const webfinger_json = @embedFile("webfinger.json");
-fn webfingerScript(ally: Allocator, w: *spn.HttpResponse, req: *spn.SpinRequest) void {
-    if (req.method != 0) return status.nomethod(w);
+fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
+    if (r.method != 0) return status.nomethod(w);
 
-    const unknown = unknownResource(ally, req.uri);
+    const unknown = unknownResource(ally, r.uri);
     if (unknown) return status.bad(w);
 
     w.headers.put("Content-Type", "application/jrd+json") catch {
@@ -69,13 +69,14 @@ fn unknownResource(allocator: Allocator, ur: []const u8) bool {
     return bad;
 }
 
+//const config = @import("spin/config.zig");
 // list allowed resource values
 fn formatResource(allocator: Allocator) !std.ArrayList([]const u8) {
     var all = std.ArrayList([]const u8).init(allocator);
     errdefer all.deinit();
 
-    const who = config.selfActor() orelse "00000";
-    const subd = config.siteSubdomain() orelse "00000";
+    const who = spin.config.selfActor() orelse "00000";
+    const subd = spin.config.siteSubdomain() orelse "00000";
 
     //case "acct:self@subd":
     const c1 = try std.fmt.allocPrint(allocator, "acct:{s}@{s}", .{ who, subd });
