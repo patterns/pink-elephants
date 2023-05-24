@@ -141,5 +141,18 @@ pub fn build(b: *std.Build) void {
         b.installArtifact(wfexe);
     }
 
+    // actor component
+    {
+        const acexe = b.addExecutable(.{
+            .name = "actor",
+            .root_source_file = .{ .path = "src/actor.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        acexe.single_threaded = true;
+        acexe.export_symbol_names = &export_names;
+        b.installArtifact(acexe);
+    }
+
 }
 
