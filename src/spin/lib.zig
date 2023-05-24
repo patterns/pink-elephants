@@ -217,10 +217,10 @@ fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
         var tup = record[rownum];
 
         // some arbitrary limits on field lengths (until we achieve sig header)
-        std.debug.assert(tup.f0.len < 64);
-        std.debug.assert(tup.f1.len < 256);
-        var fld: [64]u8 = undefined;
-        var val: [256]u8 = undefined;
+        std.debug.assert(tup.f0.len < 128);
+        std.debug.assert(tup.f1.len < 512);
+        var fld: [128]u8 = undefined;
+        var val: [512]u8 = undefined;
         _ = try std.fmt.bufPrintZ(&fld, "{s}", .{tup.f0.ptr[0..tup.f0.len]});
         _ = try std.fmt.bufPrintZ(&val, "{s}", .{tup.f1.ptr[0..tup.f1.len]});
 
