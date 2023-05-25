@@ -1,8 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 // static allocator
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+var gpal = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
 pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *Request) void;
@@ -30,7 +30,7 @@ fn guestHttpInit(
     arg_bodyAddr: WasiAddr,
     arg_bodyLen: i32,
 ) callconv(.C) WasiAddr {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
     const ally = arena.allocator();
     // life cycle begins
@@ -47,7 +47,7 @@ fn guestHttpInit(
         arg_bodyAddr,
         arg_bodyLen,
     );
-    nested.eval(ally, &response, &request);
+    nested.eval(ally);
 
     // address of memory shared to the C/host
     var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
@@ -91,12 +91,12 @@ fn canAbiRealloc(
 
     // null means to _allocate_
     if (arg_ptr == null) {
-        const newslice = allocator.alloc(u8, arg_newsz) catch return null;
+        const newslice = gpa.alloc(u8, arg_newsz) catch return null;
         return newslice.ptr;
     }
 
     var slice = (arg_ptr.?)[0..arg_oldsz];
-    const reslice = allocator.realloc(slice, arg_newsz) catch return null;
+    const reslice = gpa.realloc(slice, arg_newsz) catch return null;
     return reslice.ptr;
 }
 
@@ -105,7 +105,7 @@ fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) v
     if (arg_size == 0) return;
     if (arg_ptr == null) return;
 
-    allocator.free((arg_ptr.?)[0..arg_size]);
+    gpa.free((arg_ptr.?)[0..arg_size]);
 }
 // end exports to comply with host
 
@@ -113,15 +113,22 @@ fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) v
 const nested = blk: {
     // static event handlers
     var scripts: EvalFn = vanilla;
+
     const keeper = struct {
         // wire-up user defined script to be run
         fn next(comptime h: EvalFn) void {
             scripts = h;
         }
         // life cycle step
-        fn eval(ally: Allocator, w: *HttpResponse, r: *Request) void {
-            scripts(ally, w, r);
+        fn eval(ally: Allocator) void {
+            scripts(ally, &response, &request);
         }
+        //fn status() u16 { return response.status; }
+        //fn headersCount() usize { return response.headers.count(); }
+        //fn headersAsArray(ally: Allocator) []WasiTuple {
+        //    return response.headers_as_array(ally).items;
+        //}
+        //fn body() []u8 { return response.body.items; }
     };
     break :blk keeper;
 };
@@ -165,7 +172,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
     _ = r;
     _ = ally;
     w.body.appendSlice("vanilla placeholder") catch {
-        w.status = 501;
+        w.status = 500;
         return;
     };
     w.status = 200;
