@@ -9,8 +9,11 @@ pub fn siteSubdomain() ?[]u8 {
 pub fn redisAddress() ?[]u8 {
     return get("redis_address");
 }
-pub fn httpsigProxy() ?[]u8 {
-    return get("httpsig_proxy");
+pub fn verifierProxyUri() ?[]u8 {
+    return get("verifier_proxy_uri");
+}
+pub fn verifierProxyBearer() ?[]u8 {
+    return get("verifier_proxy_bearer");
 }
 
 /////////////////////////////////////////////////////////////

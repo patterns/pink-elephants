@@ -17,7 +17,7 @@ comptime {
     @export(canAbiFree, .{ .name = "canonical_abi_free" });
 }
 var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
-// entry point by C/host to guest code
+// entry point for C/host to guest process env
 fn guestHttpInit(
     arg_method: i32,
     arg_uriAddr: WasiAddr,
@@ -123,12 +123,6 @@ const nested = blk: {
         fn eval(ally: Allocator) void {
             scripts(ally, &response, &request);
         }
-        //fn status() u16 { return response.status; }
-        //fn headersCount() usize { return response.headers.count(); }
-        //fn headersAsArray(ally: Allocator) []WasiTuple {
-        //    return response.headers_as_array(ally).items;
-        //}
-        //fn body() []u8 { return response.body.items; }
     };
     break :blk keeper;
 };
@@ -181,6 +175,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
 // expose namespaces for convenience
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
+pub const outbound = @import("outbound.zig");
 const phi = @import("../web/phi.zig");
 
 // The basic type according to translate-c
