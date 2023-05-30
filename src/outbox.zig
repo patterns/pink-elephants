@@ -58,17 +58,31 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
 // retrieve verifier via the configuration known allowed-server
 fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerifier {
     // conf setting for proxy
-    const proxy_uri = spin.config.verifierProxyUri();
+    const proxy_uri = spin.config.verifierProxyUri() orelse "http://localhost:8000";
     // conf setting for proxy bearer token
     const proxy_bearer = spin.config.verifierProxyBearer() orelse "proxy-bearer-token";
-    var h = std.http.Headers.init(ally);
+    var h = std.ArrayList(spin.wasi.Xtup).init(ally);
     defer h.deinit();
-    try h.append("Authorization", proxy_bearer);
-
+    const literal = "Authorization";
+    const fldnam = spin.wasi.Xstr{ .ptr = @ptrToInt(&literal), .len = literal.len };
+    const fldval = spin.wasi.Xstr{ .ptr = @ptrToInt(&proxy_bearer), .len = proxy_bearer.len };
+    var hd_bearer = spin.wasi.Xtup{ .f0 = fldnam, .f1 = fldval };
+    try h.append(hd_bearer);
     // key provider JSON to specify lookup of verifier (public key)
     const body = try std.fmt.allocPrint(ally, "{\"locator\": \"{s}\"}", .{keyProv});
+    defer ally.free(body);
 
-    const response = spin.outbound.post(proxy_uri, h, body);
-    std.log.info("to-be-json-parsed, {any}", .{response});
-    //TODO parse json response
+    const res = try spin.outbound.post(proxy_uri, h, body);
+    const pem = try std.json.parseFromSlice(fragment, ally, res, .{});
+    defer std.json.parseFree(fragment, ally, pem);
+
+    return vfr.fromPEM(ally, pem.publicKey.publicKeyPem);
 }
+
+const fragment = struct {
+    publicKey: struct {
+        id: []const u8,
+        owner: []const u8,
+        publicKeyPem: []const u8,
+    },
+};

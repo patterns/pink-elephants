@@ -176,6 +176,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
+pub const wasi = @import("wasi.zig");
 const phi = @import("../web/phi.zig");
 
 // The basic type according to translate-c
