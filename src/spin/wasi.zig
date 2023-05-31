@@ -1,30 +1,35 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
+// static allocator
+var gpal = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gpal.allocator();
+
 // TODO lots to refactor as we want to leverage for use in outbound
 //      (and consolidate out from lib)
 // raw-headers can probably be replaced by std.http.Headers
 const phi = @import("../web/phi.zig");
 
 // convert std.http.Headers to array
-pub fn toTuples(ally: Allocator, h: std.http.Headers) !std.ArrayList(Xtup) {
-    // purpose, because to pass the headers to the host we need to be in
-    // the interop format of records in contiguous memory.
+//pub fn toTuples(ally: Allocator, h: std.http.Headers) !std.ArrayList(Xtup) {
+// purpose, because to pass the headers to the host we need to be in
+// the interop format of records in contiguous memory.
 
-    // todo which namespace is the proper home? (outbound?)
+// todo which namespace is the proper home? (outbound?)
 
-    var arr = std.ArrayList(Xtup).init(ally);
-    var it = h.index.iterator();
-    while (it.next()) |entry| {
-        var key = try ally.dupe(u8, entry.key_ptr.*);
-        var val = try ally.dupe(u8, entry.val_ptr.*);
-        try arr.append(Xtup{
-            .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
-            .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
-        });
-    }
-    return arr;
-}
+//    var arr = std.ArrayList(Xtup).init(ally);
+//    var it = h.index.iterator();
+//    while (it.next()) |entry| {
+
+//var key = try ally.dupe(u8, entry.key_ptr.*);
+//var val = try ally.dupe(u8, entry.val_ptr.*);
+//try arr.append( Xtup{
+//        .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
+//        .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
+//});
+//    }
+//    return arr;
+//}
+// convert raw headers which are C array into array-list
 pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(Xtup) {
     var arr = std.ArrayList(Xtup).init(ally);
     var iter = headers.iterator();
@@ -59,6 +64,7 @@ const HttpMethod = u8;
 
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
+// we use this for convenience to treat the C pointers as zig struct
 const xdata = struct {
     const Self = @This();
     ptr: [*c]u8,
@@ -80,14 +86,21 @@ const xdata = struct {
         return cp;
     }
     // release memory that was allocated by host (using CanonicalAbiAlloc)
-    //pub fn deinit(self: *Self) void {
-    //    canAbiFree(self.ptr, self.len, 1);
-    //    self.len = 0;
-    //    self.ptr = null;
-    //}
+    pub fn deinit(self: *Self) void {
+        gpfree(self.ptr, self.len);
+        self.len = 0;
+        self.ptr = null;
+    }
 };
 
+// release memory that was allocated by host (using CanonicalAbiAlloc)
+fn gpfree(ptr: ?[*]u8, len: usize) void {
+    if (len == 0 or ptr == null) return;
+    gpa.free(ptr[0..len]);
+}
+
 // list conversion from C arrays
+//(todo ?will replace raw-headers with std.http.Headers)
 fn xlist(addr: Xaddr, rowcount: i32) !phi.RawHeaders {
     var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
     const max = @intCast(usize, rowcount);
@@ -108,11 +121,11 @@ fn xlist(addr: Xaddr, rowcount: i32) !phi.RawHeaders {
         list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
 
         // free old kv
-        //canAbiFree(@ptrCast(?[*]u8, tup.f0.ptr), tup.f0.len, 1);
-        //canAbiFree(@ptrCast(?[*]u8, tup.f1.ptr), tup.f1.len, 1);
+        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, tup.f0.ptr), tup.f0.len);
+        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, tup.f1.ptr), tup.f1.len);
     }
     // free the old array
-    //canAbiFree(@ptrCast(?[*]u8, record), max *% 16, 4);
+    gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, record), max *% 16);
     return list;
 }
 
@@ -137,10 +150,10 @@ fn xmap(al: Allocator, addr: Xaddr, len: i32) std.StringHashMap([]const u8) {
             @panic("FAIL map put, ");
         };
         // free old kv
-        //canAbiFree(@ptrCast(?[*]u8, kv.f0.ptr), kv.f0.len, 1);
-        //canAbiFree(@ptrCast(?[*]u8, kv.f1.ptr), kv.f1.len, 1);
+        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, kv.f0.ptr), kv.f0.len);
+        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, kv.f1.ptr), kv.f1.len);
     }
     // free the old array
-    //canAbiFree(@ptrCast(?[*]u8, record), count *% 16, 4);
+    gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, record), count *% 16);
     return map;
 }

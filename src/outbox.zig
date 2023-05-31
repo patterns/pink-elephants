@@ -16,20 +16,20 @@ pub fn main() void {
 fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
     var wrap = phi.HeaderList.init(ally, r.headers);
     wrap.catalog() catch {
-        std.log.err("Wrap raw headers failed\n", .{});
+        std.log.err("Wrap raw headers fault", .{});
         return status.internal(w);
     };
     vfr.init(ally, r.headers) catch {
-        std.log.err("Init verifier failed\n", .{});
+        std.log.err("Init verifier fault", .{});
         return status.internal(w);
     };
     vfr.attachFetch(produceVerifierByProxy);
     const base = vfr.fmtBase(r.*, wrap) catch {
-        std.log.err("Sig base input string failed\n", .{});
+        std.log.err("Sig base input string fault", .{});
         return status.internal(w);
     };
     var matching = vfr.bySigner(ally, base) catch {
-        std.log.err("Sig verify failed\n", .{});
+        std.log.err("Sig verify fault", .{});
         return status.internal(w);
     };
     std.log.info("verify, {any}", .{matching});
@@ -37,14 +37,14 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
     // todo verify timestamp
     //TODO limit body content to 1MB
     var tree = str.toTree(ally, r.body) catch {
-        std.log.err("unexpected json format\n", .{});
+        std.log.err("JSON format unexpected fault", .{});
         return status.unprocessable(w);
     };
     defer tree.deinit();
 
     // capture for now (add processing later)
     spin.redis.enqueue(ally, tree) catch {
-        std.log.err("save failed", .{});
+        std.log.err("save fault", .{});
         return status.internal(w);
     };
 
@@ -61,6 +61,7 @@ fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerif
     const proxy_uri = spin.config.verifierProxyUri() orelse "http://localhost:8000";
     // conf setting for proxy bearer token
     const proxy_bearer = spin.config.verifierProxyBearer() orelse "proxy-bearer-token";
+
     var h = std.ArrayList(spin.wasi.Xtup).init(ally);
     defer h.deinit();
     const literal = "Authorization";
@@ -68,6 +69,7 @@ fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerif
     const fldval = spin.wasi.Xstr{ .ptr = @ptrToInt(&proxy_bearer), .len = proxy_bearer.len };
     var hd_bearer = spin.wasi.Xtup{ .f0 = fldnam, .f1 = fldval };
     try h.append(hd_bearer);
+
     // key provider JSON to specify lookup of verifier (public key)
     const body = try std.fmt.allocPrint(ally, "{\"locator\": \"{s}\"}", .{keyProv});
     defer ally.free(body);
@@ -79,6 +81,7 @@ fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerif
     return vfr.fromPEM(ally, pem.publicKey.publicKeyPem);
 }
 
+// ?will json parse ignore input fields that are not listed here
 const fragment = struct {
     publicKey: struct {
         id: []const u8,

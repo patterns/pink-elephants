@@ -19,7 +19,7 @@ pub fn get(uri: []const u8, h: std.ArrayList(was.Xtup)) !void {
 }
 
 pub fn post(uri: []const u8, h: std.ArrayList(was.Xtup), body: []const u8) ![]const u8 {
-    //const params: std.ArrayList(was.Xtup) = undefined ;
+    //todo accept std.http.Headers and convert to []was.Xtup
     return send(.{
         .method = 1,
         .uri = uri,
@@ -44,14 +44,13 @@ pub fn send(req: anytype) ![]const u8 {
     // of fields; not the same as http.Request or spin.Request
     // (make the response also anon struct?)
 
-    var addr: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
-    const method = @intCast(i32, req.method);
+    const method = @as(i32, req.method);
 
     const uri: []const u8 = req.uri;
     const uri_ptr = @intCast(i32, @ptrToInt(uri.ptr));
     const uri_len = @bitCast(i32, @truncate(c_uint, uri.len));
 
-    const headers = req.headers;
+    const headers: []was.Xtup = req.headers;
     const hdr_ptr = @intCast(i32, @ptrToInt(headers.ptr));
     const hdr_len = @bitCast(i32, @truncate(c_uint, headers.len));
 
@@ -59,7 +58,7 @@ pub fn send(req: anytype) ![]const u8 {
     //const par_ptr = @intCast(i32, @ptrToInt(params.ptr));
     //const par_len = @bitCast(i32, @truncate(c_uint, params.len));
 
-    const body = req.body;
+    const body: []const u8 = req.body;
     var bod_enable: i32 = 0;
     var bod_ptr: i32 = 0;
     var bod_len: i32 = 0;
@@ -69,6 +68,7 @@ pub fn send(req: anytype) ![]const u8 {
         bod_len = @bitCast(i32, @truncate(c_uint, body.len));
     }
 
+    var addr: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
     // ask host to forward on our behalf
     request(
         method,
@@ -84,22 +84,23 @@ pub fn send(req: anytype) ![]const u8 {
         addr,
     );
 
-    const errcode_ptr = @intToPtr([*c]u8, RET_AREA[0]);
-    const errcode_val = @bitCast(i32, @as(c_uint, errcode_ptr.*));
-    if (errcode_val == 0) {
-        const status = @as(u16, @intToPtr([*c]u16, RET_AREA[4]).*);
+    const ptr = @intCast(usize, addr);
+    const errcode = @as(c_uint, @intToPtr([*c]u8, ptr).*);
+    if (errcode == 0) {
+        const status = @as(c_uint, @intToPtr([*c]u16, ptr + @as(c_int, 4)).*);
         std.log.info("Response status {d}", .{status});
 
-        const payload = @bitCast(i32, @as(c_uint, @intToPtr([*c]u8, RET_AREA[20]).*));
-        if (payload == 0) return "";
+        const has_payload = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 20)).*);
+        if (has_payload == 0) return "";
         // unmarshal response content
-        const pl_ptr = @intToPtr([*c]u8, @intToPtr([*c]i32, addr + @as(c_int, 24)).*);
-        const pl_len = @as(usize, @intToPtr([*c]i32, RET_AREA[28]).*);
+        const pl_ptr = @intToPtr([*c]u8, @intCast(usize, @intToPtr([*c]i32, ptr + 24).*));
+        const pl_len = @bitCast(usize, @as(c_long, @intToPtr([*c]i32, ptr + @as(c_int, 28)).*));
+
         return pl_ptr[0..pl_len];
     }
 
     var detail: []const u8 = undefined;
-    const err_grp = @bitCast(i32, @as(c_uint, @intToPtr([*c]u8, RET_AREA[4]).*));
+    const err_grp = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 4)).*);
     switch (err_grp) {
         1 => detail = "destination not allowed",
         2 => detail = "invalid url",
