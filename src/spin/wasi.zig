@@ -96,36 +96,25 @@ const xdata = struct {
 // release memory that was allocated by host (using CanonicalAbiAlloc)
 fn gpfree(ptr: ?[*]u8, len: usize) void {
     if (len == 0 or ptr == null) return;
-    gpa.free(ptr[0..len]);
+    gpa.free(ptr.?[0..len]);
 }
 
 // list conversion from C arrays
 //(todo ?will replace raw-headers with std.http.Headers)
-fn xlist(addr: Xaddr, rowcount: i32) !phi.RawHeaders {
+pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
     var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
     const max = @intCast(usize, rowcount);
     var list: phi.RawHeaders = undefined;
 
     var rownum: usize = 0;
-    while (rownum < max) : (rownum +%= 1) {
+    while (rownum < max) : (rownum += 1) {
         var tup = record[rownum];
 
-        // some arbitrary limits on field lengths (until we achieve sig header)
-        std.debug.assert(tup.f0.len < 128);
-        std.debug.assert(tup.f1.len < 512);
-        var fld: [128]u8 = undefined;
-        var val: [512]u8 = undefined;
-        _ = try std.fmt.bufPrintZ(&fld, "{s}", .{tup.f0.ptr[0..tup.f0.len]});
-        _ = try std.fmt.bufPrintZ(&val, "{s}", .{tup.f1.ptr[0..tup.f1.len]});
-
-        list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
-
-        // free old kv
-        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, tup.f0.ptr), tup.f0.len);
-        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, tup.f1.ptr), tup.f1.len);
+        list[rownum] = phi.RawField{
+            .fld = try std.fmt.allocPrint(ally, "{s}", .{tup.f0.ptr[0..tup.f0.len]}),
+            .val = try std.fmt.allocPrint(ally, "{s}", .{tup.f1.ptr[0..tup.f1.len]}),
+        };
     }
-    // free the old array
-    gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, record), max *% 16);
     return list;
 }
 
@@ -149,11 +138,7 @@ fn xmap(al: Allocator, addr: Xaddr, len: i32) std.StringHashMap([]const u8) {
         map.put(key, val) catch {
             @panic("FAIL map put, ");
         };
-        // free old kv
-        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, kv.f0.ptr), kv.f0.len);
-        gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, kv.f1.ptr), kv.f1.len);
     }
-    // free the old array
-    gpfree(@ptrCast(?[*]align(@alignOf(usize)) u8, record), count *% 16);
+
     return map;
 }

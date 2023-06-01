@@ -209,64 +209,6 @@ const xdata = struct {
     }
 };
 
-// list conversion from C arrays
-fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
-    var record = @intToPtr([*c]WasiTuple, @intCast(usize, addr));
-    const max = @intCast(usize, rowcount);
-    var list: phi.RawHeaders = undefined;
-
-    var rownum: usize = 0;
-    while (rownum < max) : (rownum +%= 1) {
-        var tup = record[rownum];
-
-        // some arbitrary limits on field lengths (until we achieve sig header)
-        std.debug.assert(tup.f0.len < 128);
-        std.debug.assert(tup.f1.len < 512);
-        var fld: [128]u8 = undefined;
-        var val: [512]u8 = undefined;
-        _ = try std.fmt.bufPrintZ(&fld, "{s}", .{tup.f0.ptr[0..tup.f0.len]});
-        _ = try std.fmt.bufPrintZ(&val, "{s}", .{tup.f1.ptr[0..tup.f1.len]});
-
-        list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
-
-        // free old kv
-        canAbiFree(@ptrCast(?[*]u8, tup.f0.ptr), tup.f0.len, 1);
-        canAbiFree(@ptrCast(?[*]u8, tup.f1.ptr), tup.f1.len, 1);
-    }
-    // free the old array
-    canAbiFree(@ptrCast(?[*]u8, record), max *% 16, 4);
-    return list;
-}
-
-// map conversion from C arrays (leaning on xlist as primary to strive for minimal)
-fn xmap(al: Allocator, addr: WasiAddr, len: i32) std.StringHashMap([]const u8) {
-    var record = @intToPtr([*c]WasiTuple, @intCast(usize, addr));
-    const count = @intCast(usize, len);
-
-    var map = std.StringHashMap([]const u8).init(al);
-    var i: usize = 0;
-    while (i < count) : (i +%= 1) {
-        var kv = record[i];
-
-        var key = al.dupe(u8, kv.f0.ptr[0..kv.f0.len]) catch {
-            @panic("FAIL map key dupe ");
-        };
-        var val = al.dupe(u8, kv.f1.ptr[0..kv.f1.len]) catch {
-            @panic("FAIL map val dupe ");
-        };
-
-        map.put(key, val) catch {
-            @panic("FAIL map put, ");
-        };
-        // free old kv
-        canAbiFree(@ptrCast(?[*]u8, kv.f0.ptr), kv.f0.len, 1);
-        canAbiFree(@ptrCast(?[*]u8, kv.f1.ptr), kv.f1.len, 1);
-    }
-    // free the old array
-    canAbiFree(@ptrCast(?[*]u8, record), count *% 16, 4);
-    return map;
-}
-
 // writer for ziglang consumer
 pub const HttpResponse = struct {
     const Self = @This();
@@ -345,10 +287,10 @@ pub const Request = struct {
             content_body = std.io.fixedBufferStream(cbod.ptr[0..cbod.len]);
         }
 
-        var req_headers = xlist(hdrAddr, hdrLen) catch {
+        var req_headers = wasi.xlist(ally, hdrAddr, hdrLen) catch {
             @panic("FAIL copying headers from C addr");
         };
-        var qry_params = xlist(paramAddr, paramLen) catch {
+        var qry_params = wasi.xlist(ally, paramAddr, paramLen) catch {
             @panic("FAIL copying params from C addr");
         };
 
