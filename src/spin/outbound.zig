@@ -18,12 +18,12 @@ pub fn get(uri: []const u8, h: std.ArrayList(was.Xtup)) !void {
     std.log.info("Outbound GET, {any}", .{result});
 }
 
-pub fn post(uri: []const u8, h: std.ArrayList(was.Xtup), body: []const u8) ![]const u8 {
+pub fn post(uri: []const u8, h: []was.Xtup, body: []const u8) ![]const u8 {
     //todo accept std.http.Headers and convert to []was.Xtup
     return send(.{
         .method = 1,
         .uri = uri,
-        .headers = h.items,
+        .headers = h,
         .body = body,
         //.params = params,
     });
