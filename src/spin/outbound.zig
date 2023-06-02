@@ -2,29 +2,56 @@ const std = @import("std");
 const was = @import("wasi.zig");
 const Allocator = std.mem.Allocator;
 
-// requires 'allowed_http_hosts' component configuration
-
-pub fn get(uri: []const u8, h: std.ArrayList(was.Xtup)) !void {
-    //const params: std.ArrayList(was.Xtup) = undefined ;
-
+pub fn get(uri: []const u8, h: []was.Xtup) !void {
     const result = try send(.{
         .method = 0,
         .uri = uri,
-        .headers = h.items,
-        .body = "",
+        .headers = h,
+        .js = "",
         //.params = params,
     });
 
-    std.log.info("Outbound GET, {any}", .{result});
+    std.debug.print("Outbound GET, {any}", .{result});
 }
 
-pub fn post(uri: []const u8, h: []was.Xtup, body: []const u8) ![]const u8 {
-    //todo accept std.http.Headers and convert to []was.Xtup
+pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anytype) ![]const u8 {
+    // will payload exceed 1K?
+    var buf = try std.BoundedArray(u8, 1024).init(48);
+    try std.json.stringify(payload, .{}, buf.writer());
+    const js = try ally.dupeZ(u8, buf.constSlice());
+
+    //TODO refactor to deal with general set of headers
+    //h.append("content-type", "application/json");
+    const literal_fld = "content-type";
+    const literal_val = "application/json";
+    const fld = was.Xstr{ .ptr = @constCast(literal_fld.ptr), .len = literal_fld.len };
+    const val = was.Xstr{ .ptr = @constCast(literal_val.ptr), .len = literal_val.len };
+    const ct_tup = was.Xtup{ .f0 = fld, .f1 = val };
+    var bearer_tup: was.Xtup = undefined;
+    const bearer_fld = "Authorization";
+    if (h.getFirstEntry(bearer_fld)) |bearer| {
+        const b_fld: [:0]u8 = try ally.dupeZ(u8, bearer.name);
+        const b_val: [:0]u8 = try ally.dupeZ(u8, bearer.value);
+        bearer_tup.f0 = was.Xstr{ .ptr = b_fld.ptr, .len = b_fld.len };
+        bearer_tup.f1 = was.Xstr{ .ptr = b_val.ptr, .len = b_val.len };
+    } else {
+        const bearer_val = "verifier-proxy-bearer-token";
+        bearer_tup.f0 = was.Xstr{ .ptr = @constCast(bearer_fld.ptr), .len = bearer_fld.len };
+        bearer_tup.f1 = was.Xstr{ .ptr = @constCast(bearer_val.ptr), .len = bearer_val.len };
+    }
+    var arr = [_]was.Xtup{ ct_tup, bearer_tup };
+
+    // uri (limit 255 characters) as C-string
+    var curi: [255:0]u8 = undefined;
+    if (uri.len >= curi.len) return error.PostUriMax;
+    std.mem.copy(u8, curi[0..uri.len], uri);
+    curi[uri.len] = 0;
+
     return send(.{
         .method = 1,
-        .uri = uri,
-        .headers = h,
-        .body = body,
+        .uri = curi[0..uri.len :0],
+        .headers = &arr,
+        .js = js,
         //.params = params,
     });
 }
@@ -44,9 +71,9 @@ pub fn send(req: anytype) ![]const u8 {
     // of fields; not the same as http.Request or spin.Request
     // (make the response also anon struct?)
 
-    const method = @as(i32, req.method);
+    const method = @bitCast(i32, @as(c_uint, req.method));
 
-    const uri: []const u8 = req.uri;
+    const uri: [:0]const u8 = req.uri;
     const uri_ptr = @intCast(i32, @ptrToInt(uri.ptr));
     const uri_len = @bitCast(i32, @truncate(c_uint, uri.len));
 
@@ -58,17 +85,17 @@ pub fn send(req: anytype) ![]const u8 {
     //const par_ptr = @intCast(i32, @ptrToInt(params.ptr));
     //const par_len = @bitCast(i32, @truncate(c_uint, params.len));
 
-    const body: []const u8 = req.body;
-    var bod_enable: i32 = 0;
-    var bod_ptr: i32 = 0;
-    var bod_len: i32 = 0;
-    if (body.len != 0) {
-        bod_enable = 1;
-        bod_ptr = @intCast(i32, @ptrToInt(body.ptr));
-        bod_len = @bitCast(i32, @truncate(c_uint, body.len));
+    const js: [:0]const u8 = req.js;
+    var js_enable: i32 = 0;
+    var js_ptr: i32 = 0;
+    var js_len: i32 = 0;
+    if (js.len != 0) {
+        js_enable = 1;
+        js_ptr = @intCast(i32, @ptrToInt(js.ptr));
+        js_len = @bitCast(i32, @truncate(c_uint, js.len));
     }
 
-    var addr: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
+    const addr: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
     // ask host to forward on our behalf
     request(
         method,
@@ -78,9 +105,9 @@ pub fn send(req: anytype) ![]const u8 {
         hdr_len,
         0,
         0, ////par_ptr, par_len,
-        bod_enable,
-        bod_ptr,
-        bod_len,
+        js_enable,
+        js_ptr,
+        js_len,
         addr,
     );
 
@@ -88,7 +115,7 @@ pub fn send(req: anytype) ![]const u8 {
     const errcode = @as(c_uint, @intToPtr([*c]u8, ptr).*);
     if (errcode == 0) {
         const status = @as(c_uint, @intToPtr([*c]u16, ptr + @as(c_int, 4)).*);
-        std.log.info("Response status {d}", .{status});
+        std.debug.print("Response status {d}", .{status});
 
         const has_payload = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 20)).*);
         if (has_payload == 0) return "";

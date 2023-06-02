@@ -17,7 +17,7 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
     if (!verifySignature(ally, r)) {
         // normally halt and respond with server-error
         ////return status.internal(w);
-        std.log.warn("verify unsucessful, capture info for troubleshooting", .{});
+        std.debug.print("verify unsucessful, capture info for troubleshooting", .{});
         // but we'll continue and capture info for troubleshooting
         // since our plan is to delegate processing to workers separately
     }
@@ -63,7 +63,7 @@ fn verifySignature(ally: Allocator, r: *spin.Request) bool {
         std.log.err("Sig verify fault", .{});
         return false;
     };
-    std.log.info("LOOKHERE verify, {any}", .{matching});
+    std.debug.print("LOOKHERE verify, {any}", .{matching});
     return matching;
 }
 
@@ -75,21 +75,16 @@ fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerif
     // conf setting for proxy bearer token
     const proxy_bearer = spin.config.verifierProxyBearer() orelse "proxy-bearer-token";
 
-    const literal = "Authorization";
-    const fld = spin.wasi.Xstr{ .ptr = @ptrToInt(&literal), .len = literal.len };
-    const val = spin.wasi.Xstr{ .ptr = @ptrToInt(&proxy_bearer), .len = proxy_bearer.len };
-    var h = [_]spin.wasi.Xtup{spin.wasi.Xtup{ .f0 = fld, .f1 = val }};
+    var h = std.http.Headers.init(ally);
+    defer h.deinit();
+    try h.append("Authorization", proxy_bearer);
 
     // key provider JSON to specify lookup origin of verifier
-    var b = std.ArrayList(u8).init(ally);
-    defer b.deinit();
-    try b.appendSlice("{\"locator\": \"");
-    try b.appendSlice(keyProv);
-    try b.appendSlice("\"}");
+    const payload = .{ .locator = keyProv };
 
     // make egress trip to proxy
-    const res = try spin.outbound.post(proxy_uri, &h, b.items);
-    std.log.info("Proxy response, {s}\n", .{res});
+    const res = try spin.outbound.post(ally, proxy_uri, h, payload);
+    std.debug.print("Proxy response, {s}\n", .{res});
 
     const pem = try std.json.parseFromSlice(fragment, ally, res, .{});
     defer std.json.parseFree(fragment, ally, pem);
