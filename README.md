@@ -17,3 +17,7 @@ Interfaces
 Zig fmt workflow
  by [Bun.sh](https://github.com/oven-sh/bun/)
 
+Namespace
+ by [Frank Denis](https://github.com/jedisct1/zigly/) ([LICENSE](https://github.com/jedisct1/zigly/blob/master/LICENSE))
+
+

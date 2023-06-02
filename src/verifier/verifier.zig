@@ -1,4 +1,5 @@
 const std = @import("std");
+const pkcs1 = @import("pkcs1");
 
 const spin = @import("../spin/lib.zig");
 const phi = @import("../web/phi.zig");
@@ -36,11 +37,10 @@ pub fn fmtBase(req: spin.Request, headers: phi.HeaderList) ![]const u8 {
 
 // verify signature
 pub fn bySigner(ally: Allocator, base: []const u8) !bool {
-
     // _pre-verify_, harvest the public key
     impl.parsed = try produceVerifier(ally);
 
-    return impl.bySigner(base, ally);
+    return impl.bySigner(base);
 }
 
 // allows test to fire the fetch event
@@ -127,31 +127,28 @@ const ByRSASignerImpl = struct {
     }
 
     // verify signature
-    pub fn bySigner(self: Self, base: []const u8, ally: Allocator) !bool {
+    pub fn bySigner(self: Self, base: []const u8) !bool {
         // a RSA public key of modulus 2048 bits
         const rsa_modulus_2048 = 256;
-        var buffer: [rsa_modulus_2048]u8 = undefined;
-        _ = try self.signature(&buffer);
 
-        // invoke the "verifyRsa" from std
-        //try proof.signatureProof(
-        //    cert.Algorithm.sha256WithRSAEncryption.Hash(),
-        //    base,
-        //    try self.signature(&buffer),
-        //    self.parsed.algo,
-        //    self.parsed.bits());
+        var decoded: [rsa_modulus_2048]u8 = undefined;
+        _ = try self.signature(&decoded);
+        // coerce to many pointer
+        const c_decoded: [*]u8 = &decoded;
 
-        const pk_components = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
-        const public_key = try cert.rsa.PublicKey.fromBytes(pk_components.exponent, pk_components.modulus);
+        var hashed_msg: [32]u8 = undefined;
+        const sha = cert.Algorithm.sha256WithRSAEncryption.Hash();
+        sha.hash(base, &hashed_msg, .{});
+        // coerce to many pointer
+        const c_hashed: [*]u8 = &hashed_msg;
 
-        try cert.rsa.PSSSignature.verify(
-            rsa_modulus_2048,
-            buffer,
-            base,
-            public_key,
-            cert.Algorithm.sha256WithRSAEncryption.Hash(),
-            ally,
-        );
+        const pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
+        var buf_m: [rsa_modulus_2048]u8 = undefined;
+        var buf_e: [rsa_modulus_2048]u8 = undefined;
+        const c_mod: [:0]u8 = try std.fmt.bufPrintZ(&buf_m, "{s}", .{pkco.modulus});
+        const c_exp: [:0]u8 = try std.fmt.bufPrintZ(&buf_e, "{s}", .{pkco.exponent});
+
+        try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
 
         return true;
     }
@@ -164,7 +161,7 @@ const ByRSASignerImpl = struct {
         const clean = mem.trim(u8, sig, "\"");
         const max = try b64.calcSizeForSlice(clean);
 
-        log.warn("b64, {s}", .{clean});
+        log.info("b64, {s}", .{clean});
 
         var decoded = buffer[0..max];
         try b64.decode(decoded, clean);

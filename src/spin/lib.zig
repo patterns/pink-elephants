@@ -1,8 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 // static allocator
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+var gpal = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
 pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *Request) void;
@@ -17,7 +17,7 @@ comptime {
     @export(canAbiFree, .{ .name = "canonical_abi_free" });
 }
 var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
-// entry point by C/host to guest code
+// entry point for C/host to guest process env
 fn guestHttpInit(
     arg_method: i32,
     arg_uriAddr: WasiAddr,
@@ -30,7 +30,7 @@ fn guestHttpInit(
     arg_bodyAddr: WasiAddr,
     arg_bodyLen: i32,
 ) callconv(.C) WasiAddr {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
     const ally = arena.allocator();
     // life cycle begins
@@ -47,7 +47,7 @@ fn guestHttpInit(
         arg_bodyAddr,
         arg_bodyLen,
     );
-    nested.eval(ally, &response, &request);
+    nested.eval(ally);
 
     // address of memory shared to the C/host
     var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
@@ -91,12 +91,12 @@ fn canAbiRealloc(
 
     // null means to _allocate_
     if (arg_ptr == null) {
-        const newslice = allocator.alloc(u8, arg_newsz) catch return null;
+        const newslice = gpa.alloc(u8, arg_newsz) catch return null;
         return newslice.ptr;
     }
 
     var slice = (arg_ptr.?)[0..arg_oldsz];
-    const reslice = allocator.realloc(slice, arg_newsz) catch return null;
+    const reslice = gpa.realloc(slice, arg_newsz) catch return null;
     return reslice.ptr;
 }
 
@@ -105,7 +105,7 @@ fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) v
     if (arg_size == 0) return;
     if (arg_ptr == null) return;
 
-    allocator.free((arg_ptr.?)[0..arg_size]);
+    gpa.free((arg_ptr.?)[0..arg_size]);
 }
 // end exports to comply with host
 
@@ -113,14 +113,15 @@ fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) v
 const nested = blk: {
     // static event handlers
     var scripts: EvalFn = vanilla;
+
     const keeper = struct {
         // wire-up user defined script to be run
         fn next(comptime h: EvalFn) void {
             scripts = h;
         }
         // life cycle step
-        fn eval(ally: Allocator, w: *HttpResponse, r: *Request) void {
-            scripts(ally, w, r);
+        fn eval(ally: Allocator) void {
+            scripts(ally, &response, &request);
         }
     };
     break :blk keeper;
@@ -165,7 +166,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
     _ = r;
     _ = ally;
     w.body.appendSlice("vanilla placeholder") catch {
-        w.status = 501;
+        w.status = 500;
         return;
     };
     w.status = 200;
@@ -174,6 +175,8 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
 // expose namespaces for convenience
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
+pub const outbound = @import("outbound.zig");
+pub const wasi = @import("wasi.zig");
 const phi = @import("../web/phi.zig");
 
 // The basic type according to translate-c
@@ -205,64 +208,6 @@ const xdata = struct {
         self.ptr = null;
     }
 };
-
-// list conversion from C arrays
-fn xlist(addr: WasiAddr, rowcount: i32) !phi.RawHeaders {
-    var record = @intToPtr([*c]WasiTuple, @intCast(usize, addr));
-    const max = @intCast(usize, rowcount);
-    var list: phi.RawHeaders = undefined;
-
-    var rownum: usize = 0;
-    while (rownum < max) : (rownum +%= 1) {
-        var tup = record[rownum];
-
-        // some arbitrary limits on field lengths (until we achieve sig header)
-        std.debug.assert(tup.f0.len < 64);
-        std.debug.assert(tup.f1.len < 256);
-        var fld: [64]u8 = undefined;
-        var val: [256]u8 = undefined;
-        _ = try std.fmt.bufPrintZ(&fld, "{s}", .{tup.f0.ptr[0..tup.f0.len]});
-        _ = try std.fmt.bufPrintZ(&val, "{s}", .{tup.f1.ptr[0..tup.f1.len]});
-
-        list[rownum] = phi.RawField{ .fld = &fld, .val = &val };
-
-        // free old kv
-        canAbiFree(@ptrCast(?[*]u8, tup.f0.ptr), tup.f0.len, 1);
-        canAbiFree(@ptrCast(?[*]u8, tup.f1.ptr), tup.f1.len, 1);
-    }
-    // free the old array
-    canAbiFree(@ptrCast(?[*]u8, record), max *% 16, 4);
-    return list;
-}
-
-// map conversion from C arrays (leaning on xlist as primary to strive for minimal)
-fn xmap(al: Allocator, addr: WasiAddr, len: i32) std.StringHashMap([]const u8) {
-    var record = @intToPtr([*c]WasiTuple, @intCast(usize, addr));
-    const count = @intCast(usize, len);
-
-    var map = std.StringHashMap([]const u8).init(al);
-    var i: usize = 0;
-    while (i < count) : (i +%= 1) {
-        var kv = record[i];
-
-        var key = al.dupe(u8, kv.f0.ptr[0..kv.f0.len]) catch {
-            @panic("FAIL map key dupe ");
-        };
-        var val = al.dupe(u8, kv.f1.ptr[0..kv.f1.len]) catch {
-            @panic("FAIL map val dupe ");
-        };
-
-        map.put(key, val) catch {
-            @panic("FAIL map put, ");
-        };
-        // free old kv
-        canAbiFree(@ptrCast(?[*]u8, kv.f0.ptr), kv.f0.len, 1);
-        canAbiFree(@ptrCast(?[*]u8, kv.f1.ptr), kv.f1.len, 1);
-    }
-    // free the old array
-    canAbiFree(@ptrCast(?[*]u8, record), count *% 16, 4);
-    return map;
-}
 
 // writer for ziglang consumer
 pub const HttpResponse = struct {
@@ -342,10 +287,10 @@ pub const Request = struct {
             content_body = std.io.fixedBufferStream(cbod.ptr[0..cbod.len]);
         }
 
-        var req_headers = xlist(hdrAddr, hdrLen) catch {
+        var req_headers = wasi.xlist(ally, hdrAddr, hdrLen) catch {
             @panic("FAIL copying headers from C addr");
         };
-        var qry_params = xlist(paramAddr, paramLen) catch {
+        var qry_params = wasi.xlist(ally, paramAddr, paramLen) catch {
             @panic("FAIL copying params from C addr");
         };
 

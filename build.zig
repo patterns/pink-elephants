@@ -123,6 +123,22 @@ pub fn build(b: *std.Build) void {
         inexe.export_symbol_names = &export_names;
         b.installArtifact(inexe);
     }
+    // outbox component
+    {
+        const obexe = b.addExecutable(.{
+            .name = "outbox",
+            .root_source_file = .{ .path = "src/outbox.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        obexe.linkLibC();
+        obexe.linkLibrary(lib);
+        obexe.addIncludePath("./deps/mbedtls/include");
+        obexe.addModule("pkcs1", pkcs1);
+        obexe.single_threaded = true;
+        obexe.export_symbol_names = &export_names;
+        b.installArtifact(obexe);
+    }
 
     // webfinger component
     {
@@ -132,10 +148,6 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        //wfexe.linkLibC();
-        //wfexe.linkLibrary(lib);
-        //wfexe.addIncludePath("./deps/mbedtls/include");
-        //wfexe.addModule("pkcs1", pkcs1);
         wfexe.single_threaded = true;
         wfexe.export_symbol_names = &export_names;
         b.installArtifact(wfexe);

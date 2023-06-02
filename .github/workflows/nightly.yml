@@ -1,6 +1,6 @@
 name: nightly
 env:
-  ZIG_VERSION: 0.11.0-dev.3277+a0652fb93
+  ZIG_VERSION: 0.11.0-dev.3336+6c2f37455
 
 on:
   pull_request:

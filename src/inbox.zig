@@ -1,7 +1,3 @@
-//pub const std_options = struct { pub const log_level = .debug; };
-pub fn main() void {
-    @import("std").debug.print("replace with lib step?", .{});
-}
 const std = @import("std");
 const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
@@ -10,15 +6,18 @@ const vfr = @import("verifier/verifier.zig");
 const phi = @import("web/phi.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
-
+pub fn main() void {
+    @import("std").debug.print("replace with lib step?", .{});
+}
 comptime {
     spin.handle(inboxScript);
 }
-//const redis = @import("spin/redis.zig");
+
 fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
     const bad = unknownSignature(ally, r.*) catch true;
 
     if (bad) {
+        //todo worth logging in the early tests to see common failures?
         return status.forbidden(w);
     }
 
