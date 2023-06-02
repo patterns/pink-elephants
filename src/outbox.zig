@@ -17,7 +17,7 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
     if (!verifySignature(ally, r)) {
         // normally halt and respond with server-error
         ////return status.internal(w);
-        std.debug.print("verify unsucessful, capture info for troubleshooting", .{});
+        std.debug.print("\nverify unsucessful, capture info for troubleshooting", .{});
         // but we'll continue and capture info for troubleshooting
         // since our plan is to delegate processing to workers separately
     }
@@ -63,7 +63,7 @@ fn verifySignature(ally: Allocator, r: *spin.Request) bool {
         std.log.err("Sig verify fault", .{});
         return false;
     };
-    std.debug.print("LOOKHERE verify, {any}", .{matching});
+    std.debug.print("\nLOOKHERE verify, {any}", .{matching});
     return matching;
 }
 
@@ -81,10 +81,11 @@ fn produceVerifierByProxy(ally: Allocator, keyProv: []const u8) !vfr.ParsedVerif
 
     // key provider JSON to specify lookup origin of verifier
     const payload = .{ .locator = keyProv };
+    std.debug.print("\n?,locator: {s}", .{keyProv});
 
     // make egress trip to proxy
     const res = try spin.outbound.post(ally, proxy_uri, h, payload);
-    std.debug.print("Proxy response, {s}\n", .{res});
+    std.debug.print("\n<,proxy.response: {s}", .{res});
 
     const pem = try std.json.parseFromSlice(fragment, ally, res, .{});
     defer std.json.parseFree(fragment, ally, pem);
