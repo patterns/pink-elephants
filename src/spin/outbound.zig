@@ -16,9 +16,10 @@ pub fn get(uri: []const u8, h: []was.Xtup) !void {
 
 pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anytype) ![]const u8 {
     // will payload exceed 1K?
-    var buf = try std.BoundedArray(u8, 1024).init(48);
+    var buf = std.ArrayList(u8).init(ally);
+    defer buf.deinit();
     try std.json.stringify(payload, .{}, buf.writer());
-    const js = try ally.dupeZ(u8, buf.constSlice());
+    const js = try ally.dupeZ(u8, buf.items);
 
     //TODO refactor to deal with general set of headers
     //h.append("content-type", "application/json");
@@ -85,6 +86,7 @@ pub fn send(req: anytype) ![]const u8 {
     //const par_ptr = @intCast(i32, @ptrToInt(params.ptr));
     //const par_len = @bitCast(i32, @truncate(c_uint, params.len));
 
+    std.debug.print("\n?,payload: {s}", .{req.js});
     const js: [:0]const u8 = req.js;
     var js_enable: i32 = 0;
     var js_ptr: i32 = 0;
@@ -115,7 +117,7 @@ pub fn send(req: anytype) ![]const u8 {
     const errcode = @as(c_uint, @intToPtr([*c]u8, ptr).*);
     if (errcode == 0) {
         const status = @as(c_uint, @intToPtr([*c]u16, ptr + @as(c_int, 4)).*);
-        std.debug.print("Response status {d}", .{status});
+        std.debug.print("\n<,http.status: {d}", .{status});
 
         const has_payload = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 20)).*);
         if (has_payload == 0) return "";

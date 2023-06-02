@@ -47,7 +47,8 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     if (produce != undefined) {
         const key_provider = impl.auth.get(.sub_key_id).value;
-        return produce(ally, key_provider);
+        const clean = std.mem.trim(u8, key_provider, "\"");
+        return produce(ally, clean);
     }
     return error.FetchNotDefined;
 }
