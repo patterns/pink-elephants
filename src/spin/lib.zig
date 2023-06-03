@@ -46,7 +46,7 @@ fn guestHttpInit(
         arg_body,
         arg_bodyAddr,
         arg_bodyLen,
-    );
+    ) catch @panic("out of mem at start of cycle");
     nested.eval(ally);
 
     // address of memory shared to the C/host
@@ -143,9 +143,9 @@ fn preprocess(
     arg_body: i32,
     arg_bodyAddr: WasiAddr,
     arg_bodyLen: i32,
-) void {
-    // ingest memory locations received from C/host
-    request = Request.init(
+) !void {
+    // map memory addresses received from C/host
+    request = try Request.init(
         ally,
         arg_method,
         arg_uriAddr,
@@ -176,38 +176,8 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
-pub const wasi = @import("wasi.zig");
+const wasi = @import("wasi.zig");
 const phi = @import("../web/phi.zig");
-
-// The basic type according to translate-c
-// ([*c]u8 is both char* and uint8*)
-const xdata = struct {
-    const Self = @This();
-    ptr: [*c]u8,
-    len: usize,
-
-    // cast address to pointer w/o allocation
-    pub fn init(addr: WasiAddr, len: i32) Self {
-        return Self{
-            .ptr = @intToPtr([*c]u8, @intCast(usize, addr)),
-            .len = @intCast(usize, len),
-        };
-    }
-    // convert as slice w/ new memory (todo provide different return types explicitly i.e., dupeZ for the sentinel)
-    pub fn dupe(self: Self, ally: Allocator) []u8 {
-        const old = self.ptr[0..self.len];
-        var cp = ally.dupe(u8, old) catch {
-            @panic("FAIL xdata dupe ");
-        };
-        return cp;
-    }
-    // release memory that was allocated by CanonicalAbiAlloc
-    pub fn deinit(self: *Self) void {
-        canAbiFree(self.ptr, self.len, 1);
-        self.len = 0;
-        self.ptr = null;
-    }
-};
 
 // writer for ziglang consumer
 pub const HttpResponse = struct {
@@ -244,7 +214,7 @@ pub const HttpResponse = struct {
         }
         return arr;
     }
-    // TODO should ownership be taken from arena when transfering to host domain
+
     pub fn deinit(self: *Self) void {
         //TODO free map items
         self.headers.deinit();
@@ -252,15 +222,16 @@ pub const HttpResponse = struct {
     }
 };
 
-// reader for ziglang consumer
+// TODO can we refactor into more of anon struct ? (context)
 pub const Request = struct {
     const Self = @This();
     ally: Allocator,
     method: HttpMethod,
-    uri: []const u8,
+    uri: [:0]const u8,
     headers: phi.RawHeaders,
-    params: phi.RawHeaders,
+    //params: phi.RawHeaders,
     body: *std.io.FixedBufferStream([]u8),
+    h2: std.http.Headers,
 
     // instantiate from C/interop (using addresses)
     pub fn init(
@@ -275,32 +246,34 @@ pub const Request = struct {
         bodyEnable: i32,
         bodyAddr: WasiAddr,
         bodyLen: i32,
-    ) Self {
-        // TODO is this copy clean?
-        var curi = xdata.init(uriAddr, uriLen);
-        var req_uri = curi.dupe(ally);
-        curi.deinit();
+    ) !Self {
+        const req_uri = try wasi.xdata.dupeZ(ally, uriAddr, uriLen);
 
-        var content_body: std.io.FixedBufferStream([]u8) = undefined;
+        //todo do we really need fbs?
+        var payload: std.io.FixedBufferStream([]u8) = undefined;
         if (bodyEnable == 1) {
-            var cbod = xdata.init(bodyAddr, bodyLen);
-            content_body = std.io.fixedBufferStream(cbod.ptr[0..cbod.len]);
+            var cbod = wasi.xdata.init(bodyAddr, bodyLen);
+            const slc = cbod.dupe(ally);
+            payload = std.io.fixedBufferStream(slc);
         }
 
-        var req_headers = wasi.xlist(ally, hdrAddr, hdrLen) catch {
-            @panic("FAIL copying headers from C addr");
-        };
-        var qry_params = wasi.xlist(ally, paramAddr, paramLen) catch {
-            @panic("FAIL copying params from C addr");
-        };
+        var req_headers = try wasi.xlist(ally, hdrAddr, hdrLen);
+        var map = try wasi.xmap(ally, hdrAddr, hdrLen);
+        //todo skip param list while we iron out headers
+        _ = paramAddr;
+        _ = paramLen;
+        //var qry_params = wasi.xlist(ally, paramAddr, paramLen) catch {
+        //    @panic("FAIL copying params from C addr");
+        //};
 
         return Self{
             .ally = ally,
             .method = @intCast(HttpMethod, method),
             .uri = req_uri,
             .headers = req_headers,
-            .params = qry_params,
-            .body = &content_body,
+            //.params = qry_params,
+            .body = &payload,
+            .h2 = map,
         };
     }
     // TODO relying on arena to free at the end
