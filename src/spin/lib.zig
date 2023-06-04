@@ -5,7 +5,7 @@ var gpal = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
-pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: *Request) void;
+pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: anytype) void;
 pub fn handle(comptime h: EvalFn) void {
     nested.next(h);
 }
@@ -34,19 +34,18 @@ fn guestHttpInit(
     defer arena.deinit();
     const ally = arena.allocator();
     // life cycle begins
-    preprocess(
-        ally,
-        arg_method,
-        arg_uriAddr,
-        arg_uriLen,
-        arg_hdrAddr,
-        arg_hdrLen,
-        arg_paramAddr,
-        arg_paramLen,
-        arg_body,
-        arg_bodyAddr,
-        arg_bodyLen,
-    ) catch @panic("out of mem at start of cycle");
+    preprocess(ally, .{
+        .method = arg_method,
+        .uri_ad = arg_uriAddr,
+        .uri_len = arg_uriLen,
+        .hdr_ad = arg_hdrAddr,
+        .hdr_len = arg_hdrLen,
+        .par_ad = arg_paramAddr,
+        .par_len = arg_paramLen,
+        .bod_enable = arg_body,
+        .bod_ad = arg_bodyAddr,
+        .bod_len = arg_bodyLen,
+    }) catch @panic("out of mem at start of cycle");
     nested.eval(ally);
 
     // address of memory shared to the C/host
@@ -121,48 +120,30 @@ const nested = blk: {
         }
         // life cycle step
         fn eval(ally: Allocator) void {
-            scripts(ally, &response, &request);
+            scripts(ally, &response, .{
+                .method = context.method(),
+                .uri = context.uri(),
+                .body = context.body(),
+                .headers = context.headers(),
+            });
         }
     };
     break :blk keeper;
 };
 
 // static request in life cycle
-var request: Request = undefined;
+//var request: Request = undefined;
 var response: HttpResponse = undefined;
 // life cycle pre-process step
-fn preprocess(
-    ally: Allocator,
-    arg_method: i32,
-    arg_uriAddr: WasiAddr,
-    arg_uriLen: i32,
-    arg_hdrAddr: WasiAddr,
-    arg_hdrLen: i32,
-    arg_paramAddr: WasiAddr,
-    arg_paramLen: i32,
-    arg_body: i32,
-    arg_bodyAddr: WasiAddr,
-    arg_bodyLen: i32,
-) !void {
+fn preprocess(ally: Allocator, state: anytype) !void {
     // map memory addresses received from C/host
-    request = try Request.init(
-        ally,
-        arg_method,
-        arg_uriAddr,
-        arg_uriLen,
-        arg_hdrAddr,
-        arg_hdrLen,
-        arg_paramAddr,
-        arg_paramLen,
-        arg_body,
-        arg_bodyAddr,
-        arg_bodyLen,
-    );
+    try context.init(ally, state);
+
     // new response writer in life cycle
     response = HttpResponse.init(ally);
 }
 // "null" script (zero case template)
-fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
+fn vanilla(ally: Allocator, w: *HttpResponse, r: anytype) void {
     _ = r;
     _ = ally;
     w.body.appendSlice("vanilla placeholder") catch {
@@ -176,8 +157,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: *Request) void {
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
-const wasi = @import("wasi.zig");
-const phi = @import("../web/phi.zig");
+pub const context = @import("http.zig");
 
 // writer for ziglang consumer
 pub const HttpResponse = struct {
@@ -222,66 +202,6 @@ pub const HttpResponse = struct {
     }
 };
 
-// TODO can we refactor into more of anon struct ? (context)
-pub const Request = struct {
-    const Self = @This();
-    ally: Allocator,
-    method: HttpMethod,
-    uri: [:0]const u8,
-    headers: phi.RawHeaders,
-    //params: phi.RawHeaders,
-    body: *std.io.FixedBufferStream([]u8),
-    h2: std.http.Headers,
-
-    // instantiate from C/interop (using addresses)
-    pub fn init(
-        ally: Allocator,
-        method: i32,
-        uriAddr: WasiAddr,
-        uriLen: i32,
-        hdrAddr: WasiAddr,
-        hdrLen: i32,
-        paramAddr: WasiAddr,
-        paramLen: i32,
-        bodyEnable: i32,
-        bodyAddr: WasiAddr,
-        bodyLen: i32,
-    ) !Self {
-        const req_uri = try wasi.xdata.dupeZ(ally, uriAddr, uriLen);
-
-        //todo do we really need fbs?
-        var payload: std.io.FixedBufferStream([]u8) = undefined;
-        if (bodyEnable == 1) {
-            var cbod = wasi.xdata.init(bodyAddr, bodyLen);
-            const slc = cbod.dupe(ally);
-            payload = std.io.fixedBufferStream(slc);
-        }
-
-        var req_headers = try wasi.xlist(ally, hdrAddr, hdrLen);
-        var map = try wasi.xmap(ally, hdrAddr, hdrLen);
-        //todo skip param list while we iron out headers
-        _ = paramAddr;
-        _ = paramLen;
-        //var qry_params = wasi.xlist(ally, paramAddr, paramLen) catch {
-        //    @panic("FAIL copying params from C addr");
-        //};
-
-        return Self{
-            .ally = ally,
-            .method = @intCast(HttpMethod, method),
-            .uri = req_uri,
-            .headers = req_headers,
-            //.params = qry_params,
-            .body = &payload,
-            .h2 = map,
-        };
-    }
-    // TODO relying on arena to free at the end
-    //pub fn deinit(self: *Self) void {
-    // TODO bus error (maybe refactor to non-allocating for now)
-    //}
-};
-
 // C/interop address
 pub const WasiAddr = i32;
 // "anon" struct just for address to tuple C/interop
@@ -290,5 +210,3 @@ const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };
 
 /// HTTP status codes.
 pub const HttpStatus = u16;
-/// HTTP method verb.
-pub const HttpMethod = u8;

@@ -51,7 +51,10 @@ pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(
     return arr;
 }
 
-// C/interop address
+// C/interop (in the direction of from guest to host)
+////pub const Xcstr = [:0]u8;
+
+// C/interop (in the direction of from host to guest)
 const Xaddr = i32;
 // "anon" struct just for address to tuple C/interop
 pub const Xstr = extern struct { ptr: [*c]u8, len: usize };
@@ -114,7 +117,7 @@ pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
     var list: phi.RawHeaders = undefined;
 
     var rownum: usize = 0;
-    while (rownum < max) : (rownum += 1) {
+    while (rownum < max) : (rownum +%= 1) {
         var tup = record[rownum];
 
         list[rownum] = phi.RawField{
@@ -125,18 +128,18 @@ pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
     return list;
 }
 
-// C array to header set
-pub fn xmap(ally: Allocator, ad: Xaddr, rowcount: i32) !std.http.Headers {
+// C array to slice
+pub fn xslice(ally: Allocator, ad: Xaddr, rowcount: i32) ![]std.http.Field {
     const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
     const max = @intCast(usize, rowcount);
 
-    var map = std.http.Headers.init(ally);
+    var pairs = std.ArrayList(std.http.Field).init(ally);
     var rownum: usize = 0;
-    while (rownum < max) : (rownum += 1) {
+    while (rownum < max) : (rownum +%= 1) {
         const tup = record[rownum];
         const fld = tup.f0.ptr[0..tup.f0.len];
         const val = tup.f1.ptr[0..tup.f1.len];
-        try map.append(fld, val);
+        try pairs.append(.{ .name = fld, .value = val });
     }
-    return map;
+    return pairs.items;
 }
