@@ -51,8 +51,11 @@ pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(
     return arr;
 }
 
-// C/interop address
-const Xaddr = i32;
+// C/interop (in the direction of from guest to host)
+////pub const Xcstr = [:0]u8;
+
+// C/interop (in the direction of from host to guest)
+const Xptr = i32;
 // "anon" struct just for address to tuple C/interop
 pub const Xstr = extern struct { ptr: [*c]u8, len: usize };
 pub const Xtup = extern struct { f0: Xstr, f1: Xstr };
@@ -64,19 +67,26 @@ const HttpMethod = u8;
 
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
-// we use this for convenience to treat the C pointers as zig struct
-const xdata = struct {
+pub const xdata = struct {
     const Self = @This();
     ptr: [*c]u8,
     len: usize,
 
     // cast address to pointer w/o allocation
-    pub fn init(addr: Xaddr, len: i32) Self {
+    pub fn init(addr: Xptr, len: i32) Self {
         return Self{
             .ptr = @intToPtr([*c]u8, @intCast(usize, addr)),
             .len = @intCast(usize, len),
         };
     }
+    // shortcut for cloning C string
+    pub fn dupeZ(ally: Allocator, addr: Xptr, len: i32) ![:0]u8 {
+        const ptr = @intToPtr([*c]u8, @intCast(usize, addr));
+        const sz = @intCast(usize, len);
+        const old = ptr[0..sz];
+        return ally.dupeZ(u8, old);
+    }
+
     // convert as slice w/ new memory (todo provide different return types explicitly i.e., dupeZ for the sentinel)
     pub fn dupe(self: Self, ally: Allocator) []u8 {
         const old = self.ptr[0..self.len];
@@ -101,13 +111,13 @@ fn gpfree(ptr: ?[*]u8, len: usize) void {
 
 // list conversion from C arrays
 //(todo ?will replace raw-headers with std.http.Headers)
-pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
+pub fn xlist(ally: Allocator, addr: Xptr, rowcount: i32) !phi.RawHeaders {
     var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
     const max = @intCast(usize, rowcount);
     var list: phi.RawHeaders = undefined;
 
     var rownum: usize = 0;
-    while (rownum < max) : (rownum += 1) {
+    while (rownum < max) : (rownum +%= 1) {
         var tup = record[rownum];
 
         list[rownum] = phi.RawField{
@@ -118,27 +128,18 @@ pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
     return list;
 }
 
-// map conversion from C arrays (leaning on xlist as primary to strive for minimal)
-fn xmap(al: Allocator, addr: Xaddr, len: i32) std.StringHashMap([]const u8) {
-    var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
-    const count = @intCast(usize, len);
+// C array to slice
+pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
+    const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
+    const max = @intCast(usize, rowcount);
 
-    var map = std.StringHashMap([]const u8).init(al);
-    var i: usize = 0;
-    while (i < count) : (i +%= 1) {
-        var kv = record[i];
-
-        var key = al.dupe(u8, kv.f0.ptr[0..kv.f0.len]) catch {
-            @panic("FAIL map key dupe ");
-        };
-        var val = al.dupe(u8, kv.f1.ptr[0..kv.f1.len]) catch {
-            @panic("FAIL map val dupe ");
-        };
-
-        map.put(key, val) catch {
-            @panic("FAIL map put, ");
-        };
+    var pairs = std.ArrayList(std.http.Field).init(ally);
+    var rownum: usize = 0;
+    while (rownum < max) : (rownum +%= 1) {
+        const tup = record[rownum];
+        const fld = tup.f0.ptr[0..tup.f0.len];
+        const val = tup.f1.ptr[0..tup.f1.len];
+        try pairs.append(.{ .name = fld, .value = val });
     }
-
-    return map;
+    return pairs.items;
 }

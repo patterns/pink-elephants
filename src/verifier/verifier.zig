@@ -11,7 +11,7 @@ const streq = std.ascii.eqlIgnoreCase;
 const cert = std.crypto.Certificate;
 const dere = cert.der.Element;
 
-pub const ProduceVerifierFn = *const fn (ally: Allocator, keyProvider: []const u8) anyerror!ParsedVerifier;
+pub const ProduceVerifierFn = *const fn (ally: Allocator, key_provider: []const u8) anyerror!ParsedVerifier;
 
 // user defined step to harvest the verifier (pub key)
 pub fn attachFetch(fetch: ProduceVerifierFn) void {
@@ -31,8 +31,11 @@ pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
 }
 
 // reconstruct the signature base input str
-pub fn fmtBase(req: spin.Request, headers: phi.HeaderList) ![]const u8 {
-    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
+//pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
+//    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
+//}
+pub fn fmtBase2(req: anytype, h2: std.http.Headers) ![]const u8 {
+    return impl.fmtBase2(@intToEnum(Verb, req.method), req.uri, h2);
 }
 
 // verify signature
@@ -40,17 +43,52 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
     // _pre-verify_, harvest the public key
     impl.parsed = try produceVerifier(ally);
 
-    return impl.bySigner(base);
+    return impl.bySigner(ally, base);
 }
 
 // allows test to fire the fetch event
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     if (produce != undefined) {
-        const key_provider = impl.auth.get(.sub_key_id).value;
-        const clean = std.mem.trim(u8, key_provider, "\"");
-        return produce(ally, clean);
+        //const key_provider = impl.auth.get(.sub_key_id).value;
+        if (impl.prev.getFirstValue("keyId")) |key_provider| {
+            const clean = std.mem.trim(u8, key_provider, "\"");
+            return produce(ally, clean);
+        } else {
+            return error.LeafKeyprovider;
+        }
     }
     return error.FetchNotDefined;
+}
+
+// sprout related preverify which uses std.http.Headers
+// (to initialize auth params list)
+pub fn prev2(ally: Allocator, h2: std.http.Headers) !void {
+    if (!h2.contains("signature")) return error.PreverifySignature;
+    var p = std.http.Headers.init(ally);
+    if (h2.getFirstValue("signature")) |root| {
+        // from draft12Fields
+        var start_index: usize = 0;
+        while (std.mem.indexOfPos(u8, root, start_index, ",")) |mark| {
+            const tup = try leafOffsets(root, start_index, mark);
+            try p.append(tup.fld, tup.val);
+            start_index = mark + 1;
+        }
+        const end_mark = root.len;
+        const end_tup = try leafOffsets(root, start_index, end_mark);
+        try p.append(end_tup.fld, end_tup.val);
+    }
+    impl.prev = p;
+}
+fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld: []const u8, val: []const u8 } {
+    const f_start = start_index;
+    const pos = std.mem.indexOfPos(u8, root, start_index, "=");
+    if (pos == null) return error.SignatureLeafFormat;
+    const f_len = pos.? - start_index;
+    const v_start = pos.? + 1;
+    const v_len = mark - v_start;
+    const lookup = root[f_start..(f_start + f_len)];
+    const val = root[v_start..(v_start + v_len)];
+    return .{ .fld = lookup, .val = val };
 }
 
 // Reminder, _Verifier_ rename here is to emphasize that our concern is
@@ -59,7 +97,7 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
 // in Mastodon server crosstalk.
 const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
-var impl = ByRSASignerImpl{ .auth = undefined, .parsed = undefined };
+var impl = ByRSASignerImpl{ .auth = undefined, .parsed = undefined, .prev = undefined };
 var produce: ProduceVerifierFn = undefined;
 
 pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
@@ -72,6 +110,7 @@ const ByRSASignerImpl = struct {
 
     auth: phi.AuthParams,
     parsed: ParsedVerifier,
+    prev: std.http.Headers,
 
     // reconstruct input-string
     pub fn fmtBase(
@@ -126,9 +165,63 @@ const ByRSASignerImpl = struct {
 
         return chan.buffer.getWritten();
     }
+    pub fn fmtBase2(
+        self: Self,
+        verb: Verb,
+        uri: []const u8,
+        h2: std.http.Headers,
+    ) ![]const u8 {
+        // each signature subheader has its value encased in quotes
+        const shd = self.prev.getFirstValue("headers");
+        if (shd == null) return error.LeafHeaders;
+        const recipe = mem.trim(u8, shd.?, "\"");
+        var it = mem.tokenize(u8, recipe, " ");
+
+        const first = it.next();
+        if (first == null) return error.SignatureDelim;
+
+        // TODO double-check this, seen docs that begin with other subheaders
+        if (!mem.startsWith(u8, first.?, "(request-target)")) {
+            log.err("Httpsig leader format, {s}", .{first.?});
+            return error.SignatureFormat;
+        }
+
+        // prep bucket for base elements (multiline)
+        var acc: [512]u8 = undefined;
+        var chan = std.io.StreamSource{ .buffer = std.io.fixedBufferStream(&acc) };
+        var out = chan.writer();
+
+        // base leader
+        try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
+        // base elements
+        while (it.next()) |base_el| {
+            if (streq("host", base_el)) {
+                if (h2.getFirstValue("host")) |name| {
+                    try out.print("{s}host: {s}", .{ lf_codept, name });
+                }
+            } else if (streq("date", base_el)) {
+                //todo check timestamp
+                if (h2.getFirstValue("date")) |date| {
+                    try out.print("{s}date: {s}", .{ lf_codept, date });
+                }
+            } else if (streq("digest", base_el)) {
+                //todo check digest
+                if (h2.getFirstValue("digest")) |digest| {
+                    try out.print("{s}digest: {s}", .{ lf_codept, digest });
+                }
+            } else {
+                if (h2.getFirstValue(base_el)) |val| {
+                    const lower = base_el;
+                    try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
+                }
+            }
+        }
+
+        return chan.buffer.getWritten();
+    }
 
     // verify signature
-    pub fn bySigner(self: Self, base: []const u8) !bool {
+    pub fn bySigner(self: Self, ally: Allocator, base: []const u8) !bool {
         // a RSA public key of modulus 2048 bits
         const rsa_modulus_2048 = 256;
 
@@ -144,11 +237,14 @@ const ByRSASignerImpl = struct {
         const c_hashed: [*]u8 = &hashed_msg;
 
         const pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
-        var buf_m: [rsa_modulus_2048]u8 = undefined;
-        var buf_e: [rsa_modulus_2048]u8 = undefined;
-        const c_mod: [:0]u8 = try std.fmt.bufPrintZ(&buf_m, "{s}", .{pkco.modulus});
-        const c_exp: [:0]u8 = try std.fmt.bufPrintZ(&buf_e, "{s}", .{pkco.exponent});
+        const c_mod: [:0]u8 = try ally.dupeZ(u8, pkco.modulus);
+        const c_exp: [:0]u8 = try ally.dupeZ(u8, pkco.exponent);
+        defer ally.free(c_mod);
+        defer ally.free(c_exp);
+        std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
+        std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
 
+        // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
 
         return true;
@@ -157,16 +253,16 @@ const ByRSASignerImpl = struct {
     fn signature(self: Self, buffer: []u8) ![]u8 {
         // signature comes from the auth params list
         // which is base64 (format for header fields)
-
-        const sig = self.auth.get(.sub_signature).value;
-        const clean = mem.trim(u8, sig, "\"");
-        const max = try b64.calcSizeForSlice(clean);
-
-        log.info("b64, {s}", .{clean});
-
-        var decoded = buffer[0..max];
-        try b64.decode(decoded, clean);
-        return decoded;
+        //const sig = self.auth.get(.sub_signature).value;
+        if (self.prev.getFirstValue("signature")) |sig| {
+            const clean = mem.trim(u8, sig, "\"");
+            const max = try b64.calcSizeForSlice(clean);
+            var decoded = buffer[0..max];
+            try b64.decode(decoded, clean);
+            return decoded;
+        } else {
+            return error.LeafSignature;
+        }
     }
 };
 

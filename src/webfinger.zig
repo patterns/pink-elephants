@@ -14,7 +14,7 @@ pub fn main() void {
 }
 
 const webfinger_json = @embedFile("webfinger.json");
-fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
+fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     if (r.method != 0) return status.nomethod(w);
 
     const unknown = unknownResource(ally, r.uri);

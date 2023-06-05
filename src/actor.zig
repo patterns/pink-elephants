@@ -14,7 +14,7 @@ pub fn main() void {
 const actor_json = @embedFile("actor.json");
 const followers_json = @embedFile("followers.json");
 const following_json = @embedFile("following.json");
-fn actorScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
+fn actorScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     if (r.method == 1) return status.nomethod(w);
 
     w.headers.put("Content-Type", "application/json") catch {
