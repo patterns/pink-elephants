@@ -20,15 +20,15 @@ var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
 // entry point for C/host to guest process env
 fn guestHttpInit(
     arg_method: i32,
-    arg_uriAddr: WasiAddr,
-    arg_uriLen: i32,
-    arg_hdrAddr: WasiAddr,
-    arg_hdrLen: i32,
-    arg_paramAddr: WasiAddr,
-    arg_paramLen: i32,
+    arg_uri_ptr: WasiAddr,
+    arg_uri_len: i32,
+    arg_hdr_ptr: WasiAddr,
+    arg_hdr_len: i32,
+    arg_par_ptr: WasiAddr,
+    arg_par_len: i32,
     arg_body: i32,
-    arg_bodyAddr: WasiAddr,
-    arg_bodyLen: i32,
+    arg_bod_ptr: WasiAddr,
+    arg_bod_len: i32,
 ) callconv(.C) WasiAddr {
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
@@ -36,15 +36,15 @@ fn guestHttpInit(
     // life cycle begins
     preprocess(ally, .{
         .method = arg_method,
-        .uri_ad = arg_uriAddr,
-        .uri_len = arg_uriLen,
-        .hdr_ad = arg_hdrAddr,
-        .hdr_len = arg_hdrLen,
-        .par_ad = arg_paramAddr,
-        .par_len = arg_paramLen,
+        .uri_ptr = arg_uri_ptr,
+        .uri_len = arg_uri_len,
+        .hdr_ptr = arg_hdr_ptr,
+        .hdr_len = arg_hdr_len,
+        .par_ptr = arg_par_ptr,
+        .par_len = arg_par_len,
         .bod_enable = arg_body,
-        .bod_ad = arg_bodyAddr,
-        .bod_len = arg_bodyLen,
+        .bod_ptr = arg_bod_ptr,
+        .bod_len = arg_bod_len,
     }) catch @panic("out of mem at start of cycle");
     nested.eval(ally);
 
@@ -121,10 +121,10 @@ const nested = blk: {
         // life cycle step
         fn eval(ally: Allocator) void {
             scripts(ally, &response, .{
-                .method = context.method(),
-                .uri = context.uri(),
-                .body = context.body(),
-                .headers = context.headers(),
+                .method = http.method(),
+                .uri = http.uri(),
+                .body = http.body(),
+                .headers = http.headers(),
             });
         }
     };
@@ -137,7 +137,7 @@ var response: HttpResponse = undefined;
 // life cycle pre-process step
 fn preprocess(ally: Allocator, state: anytype) !void {
     // map memory addresses received from C/host
-    try context.init(ally, state);
+    try http.init(ally, state);
 
     // new response writer in life cycle
     response = HttpResponse.init(ally);
@@ -157,7 +157,7 @@ fn vanilla(ally: Allocator, w: *HttpResponse, r: anytype) void {
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
-pub const context = @import("http.zig");
+pub const http = @import("http.zig");
 
 // writer for ziglang consumer
 pub const HttpResponse = struct {

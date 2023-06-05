@@ -2,7 +2,7 @@ const std = @import("std");
 const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
-const phi = @import("web/phi.zig");
+//const phi = @import("web/phi.zig");
 const vfr = @import("verifier/verifier.zig");
 
 const Allocator = std.mem.Allocator;
@@ -13,7 +13,7 @@ pub fn main() void {
     std.debug.print("placeholder ", .{});
 }
 //todo std.http.Headers should supercede our array-list?
-fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
+fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     if (!verifySignature(ally, r)) {
         // normally halt and respond with server-error
         ////return status.internal(w);
@@ -44,37 +44,34 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, r: *spin.Request) void {
 
 // with outbox we expect the HTTP signature
 // (we'll capture in any case to troubleshoot our implementation)
-fn verifySignature(ally: Allocator, r: *spin.Request) bool {
-    var wrap = phi.HeaderList.init(ally, r.headers);
-    wrap.catalog() catch {
-        std.log.err("Wrap raw headers fault", .{});
-        return false;
-    };
-    vfr.init(ally, r.headers) catch {
-        std.log.err("Init verifier fault", .{});
-        return false;
-    };
+fn verifySignature(ally: Allocator, r: anytype) bool {
+    //var wrap = phi.HeaderList.init(ally, r.headers);
+    //wrap.catalog() catch {
+    //vfr.init(ally, r.headers) catch {
+    //        std.log.err("Init verifier fault", .{});
+    //        return false;
+    //};
     // * SPROUT
     //   By this point, preverify was run to populate the
     //   leaf nodes for the 'signature' header. So for h2
     //   we want to mirror the nodes as "prev2".
-    vfr.prev2(ally, r.h2) catch {
+    vfr.prev2(ally, r.headers) catch {
         std.log.err("Preverify2 fault", .{});
         return false;
     };
 
     vfr.attachFetch(produceVerifierByProxy);
-    const base = vfr.fmtBase(r.*, wrap) catch {
-        std.log.err("Sig base input string fault", .{});
-        return false;
-    };
-    const base2 = vfr.fmtBase2(r.*, r.h2) catch {
+    //const base = vfr.fmtBase(r.*, wrap) catch {
+    //        std.log.err("Sig base input string fault", .{});
+    //        return false;
+    //};
+    const base2 = vfr.fmtBase2(r, r.headers) catch {
         std.log.err("fmt base2 fault", .{});
         return false;
     };
     std.debug.print("\n?,base2: {s}", .{base2});
 
-    var matching = vfr.bySigner(ally, base) catch {
+    var matching = vfr.bySigner(ally, base2) catch {
         std.log.err("Sig verify fault", .{});
         return false;
     };

@@ -55,7 +55,7 @@ pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(
 ////pub const Xcstr = [:0]u8;
 
 // C/interop (in the direction of from host to guest)
-const Xaddr = i32;
+const Xptr = i32;
 // "anon" struct just for address to tuple C/interop
 pub const Xstr = extern struct { ptr: [*c]u8, len: usize };
 pub const Xtup = extern struct { f0: Xstr, f1: Xstr };
@@ -73,14 +73,14 @@ pub const xdata = struct {
     len: usize,
 
     // cast address to pointer w/o allocation
-    pub fn init(addr: Xaddr, len: i32) Self {
+    pub fn init(addr: Xptr, len: i32) Self {
         return Self{
             .ptr = @intToPtr([*c]u8, @intCast(usize, addr)),
             .len = @intCast(usize, len),
         };
     }
     // shortcut for cloning C string
-    pub fn dupeZ(ally: Allocator, addr: Xaddr, len: i32) ![:0]u8 {
+    pub fn dupeZ(ally: Allocator, addr: Xptr, len: i32) ![:0]u8 {
         const ptr = @intToPtr([*c]u8, @intCast(usize, addr));
         const sz = @intCast(usize, len);
         const old = ptr[0..sz];
@@ -111,7 +111,7 @@ fn gpfree(ptr: ?[*]u8, len: usize) void {
 
 // list conversion from C arrays
 //(todo ?will replace raw-headers with std.http.Headers)
-pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
+pub fn xlist(ally: Allocator, addr: Xptr, rowcount: i32) !phi.RawHeaders {
     var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
     const max = @intCast(usize, rowcount);
     var list: phi.RawHeaders = undefined;
@@ -129,7 +129,7 @@ pub fn xlist(ally: Allocator, addr: Xaddr, rowcount: i32) !phi.RawHeaders {
 }
 
 // C array to slice
-pub fn xslice(ally: Allocator, ad: Xaddr, rowcount: i32) ![]std.http.Field {
+pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
     const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
     const max = @intCast(usize, rowcount);
 

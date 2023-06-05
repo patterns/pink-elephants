@@ -31,10 +31,10 @@ pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
 }
 
 // reconstruct the signature base input str
-pub fn fmtBase(req: spin.Request, headers: phi.HeaderList) ![]const u8 {
+pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
     return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
 }
-pub fn fmtBase2(req: spin.Request, h2: std.http.Headers) ![]const u8 {
+pub fn fmtBase2(req: anytype, h2: std.http.Headers) ![]const u8 {
     return impl.fmtBase2(@intToEnum(Verb, req.method), req.uri, h2);
 }
 
