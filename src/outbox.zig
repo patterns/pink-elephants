@@ -61,15 +61,10 @@ fn verifySignature(ally: Allocator, r: anytype) bool {
     };
 
     vfr.attachFetch(produceVerifierByProxy);
-    //const base = vfr.fmtBase(r.*, wrap) catch {
-    //        std.log.err("Sig base input string fault", .{});
-    //        return false;
-    //};
     const base2 = vfr.fmtBase2(r, r.headers) catch {
-        std.log.err("fmt base2 fault", .{});
+        std.log.err("Sig base input string fault", .{});
         return false;
     };
-    std.debug.print("\n?,base2: {s}", .{base2});
 
     var matching = vfr.bySigner(ally, base2) catch {
         std.log.err("Sig verify fault", .{});

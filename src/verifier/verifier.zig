@@ -31,9 +31,9 @@ pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
 }
 
 // reconstruct the signature base input str
-pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
-    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
-}
+//pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
+//    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
+//}
 pub fn fmtBase2(req: anytype, h2: std.http.Headers) ![]const u8 {
     return impl.fmtBase2(@intToEnum(Verb, req.method), req.uri, h2);
 }
@@ -49,9 +49,13 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
 // allows test to fire the fetch event
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     if (produce != undefined) {
-        const key_provider = impl.auth.get(.sub_key_id).value;
-        const clean = std.mem.trim(u8, key_provider, "\"");
-        return produce(ally, clean);
+        //const key_provider = impl.auth.get(.sub_key_id).value;
+        if (impl.prev.getFirstValue("keyId")) |key_provider| {
+            const clean = std.mem.trim(u8, key_provider, "\"");
+            return produce(ally, clean);
+        } else {
+            return error.LeafKeyprovider;
+        }
     }
     return error.FetchNotDefined;
 }
@@ -249,14 +253,16 @@ const ByRSASignerImpl = struct {
     fn signature(self: Self, buffer: []u8) ![]u8 {
         // signature comes from the auth params list
         // which is base64 (format for header fields)
-
-        const sig = self.auth.get(.sub_signature).value;
-        const clean = mem.trim(u8, sig, "\"");
-        const max = try b64.calcSizeForSlice(clean);
-
-        var decoded = buffer[0..max];
-        try b64.decode(decoded, clean);
-        return decoded;
+        //const sig = self.auth.get(.sub_signature).value;
+        if (self.prev.getFirstValue("signature")) |sig| {
+            const clean = mem.trim(u8, sig, "\"");
+            const max = try b64.calcSizeForSlice(clean);
+            var decoded = buffer[0..max];
+            try b64.decode(decoded, clean);
+            return decoded;
+        } else {
+            return error.LeafSignature;
+        }
     }
 };
 
