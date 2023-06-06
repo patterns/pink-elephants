@@ -23,9 +23,9 @@ pub fn attachFetch(fetch: ProduceVerifierFn) void {
 }
 
 // calculate SHA256 sum of signature base input str
-pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
+pub fn sha256Base(rcv: anytype) ![sha256_len]u8 {
     var buffer: [sha256_len]u8 = undefined;
-    const base = try impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
+    const base = try impl.fmtBase2(rcv);
     std.crypto.hash.sha2.Sha256.hash(base, &buffer, .{});
     return buffer;
 }
@@ -34,8 +34,8 @@ pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
 //pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
 //    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
 //}
-pub fn fmtBase2(req: anytype, h2: std.http.Headers) ![]const u8 {
-    return impl.fmtBase2(@intToEnum(Verb, req.method), req.uri, h2);
+pub fn fmtBase(rcv: anytype) ![]const u8 {
+    return impl.fmtBase2(rcv);
 }
 
 // verify signature
@@ -115,7 +115,7 @@ const ByRSASignerImpl = struct {
     // reconstruct input-string
     pub fn fmtBase(
         self: Self,
-        verb: Verb,
+        verb: spin.http.Verb,
         uri: []const u8,
         headers: phi.HeaderList,
     ) ![]const u8 {
@@ -165,12 +165,11 @@ const ByRSASignerImpl = struct {
 
         return chan.buffer.getWritten();
     }
-    pub fn fmtBase2(
-        self: Self,
-        verb: Verb,
-        uri: []const u8,
-        h2: std.http.Headers,
-    ) ![]const u8 {
+    pub fn fmtBase2(self: Self, rcv: anytype) ![]const u8 {
+        const verb: spin.http.Verb = rcv.method;
+        const uri: []const u8 = rcv.uri;
+        const h2: std.http.Headers = rcv.headers;
+
         // each signature subheader has its value encased in quotes
         const shd = self.prev.getFirstValue("headers");
         if (shd == null) return error.LeafHeaders;
@@ -393,51 +392,52 @@ pub const VerifierError = error{
 };
 
 // http method / verbs (TODO don't expose publicly if possible)
-pub const Verb = enum(u8) {
-    get = 0,
-    post = 1,
-    put = 2,
-    delete = 3,
-    patch = 4,
-    head = 5,
-    options = 6,
+//pub const Verb = enum(u8) {
+//    get = 0,
+//    post = 1,
+//    put = 2,
+//    delete = 3,
+//    patch = 4,
+//    head = 5,
+//    options = 6,
 
-    // description (name) format of the enum
-    pub fn toDescr(self: Verb) [:0]const u8 {
-        //return DescrTable[@enumToInt(self)];
-        // insted of table, switch
-        switch (self) {
-            .get => return "get",
-            .post => return "post",
-            .put => return "put",
-            .delete => return "delete",
-            .patch => return "patch",
-            .head => return "head",
-            .options => return "options",
-        }
-    }
+// description (name) format of the enum
+//    pub fn toDescr(self: Verb) [:0]const u8 {
+//return DescrTable[@enumToInt(self)];
+// insted of table, switch
+//        switch (self) {
+//            .get => return "get",
+//            .post => return "post",
+//            .put => return "put",
+//            .delete => return "delete",
+//            .patch => return "patch",
+//            .head => return "head",
+//            .options => return "options",
+//        }
+//    }
 
-    // convert to enum
-    pub fn fromDescr(text: []const u8) Verb {
-        for (DescrTable, 0..) |row, rownum| {
-            if (streq(row, text)) {
-                return @intToEnum(Verb, rownum);
-            }
-        }
-        unreachable;
-    }
-    // TODO remove the table in favor of switch
-    // lookup table with the description
-    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
-        "get",
-        "post",
-        "put",
-        "delete",
-        "patch",
-        "head",
-        "options",
-    };
-};
+// convert to enum
+//    pub fn fromDescr(text: []const u8) Verb {
+//        for (DescrTable, 0..) |row, rownum| {
+//            if (streq(row, text)) {
+//                return @intToEnum(Verb, rownum);
+//            }
+//        }
+//        unreachable;
+//    }
+// TODO remove the table in favor of switch
+// lookup table with the description
+//    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
+//        "get",
+//        "post",
+//        "put",
+//        "delete",
+//        "patch",
+//        "head",
+//        "options",
+//    };
+
+//};
 
 const lf_codept = "\u{000A}";
 const lf_literal = 0x0A;

@@ -5,7 +5,7 @@ var gpal = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
-pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, r: anytype) void;
+pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, rcv: anytype) void;
 pub fn handle(comptime h: EvalFn) void {
     nested.next(h);
 }
@@ -20,16 +20,16 @@ var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
 // entry point for C/host to guest process env
 fn guestHttpInit(
     arg_method: i32,
-    arg_uri_ptr: WasiAddr,
+    arg_uri_ptr: WasiPtr,
     arg_uri_len: i32,
-    arg_hdr_ptr: WasiAddr,
+    arg_hdr_ptr: WasiPtr,
     arg_hdr_len: i32,
-    arg_par_ptr: WasiAddr,
+    arg_par_ptr: WasiPtr,
     arg_par_len: i32,
     arg_body: i32,
-    arg_bod_ptr: WasiAddr,
+    arg_bod_ptr: WasiPtr,
     arg_bod_len: i32,
-) callconv(.C) WasiAddr {
+) callconv(.C) WasiPtr {
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
     const ally = arena.allocator();
@@ -49,7 +49,7 @@ fn guestHttpInit(
     nested.eval(ally);
 
     // address of memory shared to the C/host
-    var re: WasiAddr = @intCast(WasiAddr, @ptrToInt(&RET_AREA));
+    var re: WasiPtr = @intCast(WasiPtr, @ptrToInt(&RET_AREA));
     // copy HTTP status code into the shared mem
     @intToPtr([*c]i16, @intCast(usize, re)).* = @intCast(i16, response.status);
     // copy headers to shared mem
@@ -77,15 +77,15 @@ fn guestHttpInit(
 }
 
 fn canAbiRealloc(
-    arg_ptr: ?[*]u8,
+    arg_ptr: ?*anyopaque,
     arg_oldsz: usize,
     arg_align: usize,
     arg_newsz: usize,
-) callconv(.C) ?[*]u8 {
+) callconv(.C) ?*anyopaque {
     // zero means to _free_ in ziglang
     // TODO (need to confirm behavior from wit-bindgen version)
     if (arg_newsz == 0) {
-        return @intToPtr(?[*]u8, arg_align);
+        return @intToPtr(?*anyopaque, arg_align);
     }
 
     // null means to _allocate_
@@ -93,18 +93,22 @@ fn canAbiRealloc(
         const newslice = gpa.alloc(u8, arg_newsz) catch return null;
         return newslice.ptr;
     }
-
-    var slice = (arg_ptr.?)[0..arg_oldsz];
+    //const al = @alignOf(usize);
+    var cp = @ptrCast([*]u8, arg_ptr.?);
+    var slice = cp[0..arg_oldsz];
     const reslice = gpa.realloc(slice, arg_newsz) catch return null;
     return reslice.ptr;
 }
 
-fn canAbiFree(arg_ptr: ?[*]u8, arg_size: usize, arg_align: usize) callconv(.C) void {
+fn canAbiFree(arg_ptr: ?*anyopaque, arg_size: usize, arg_align: usize) callconv(.C) void {
     _ = arg_align;
     if (arg_size == 0) return;
     if (arg_ptr == null) return;
+    //const al = @alignOf(usize);
+    var cp = @ptrCast([*]u8, arg_ptr.?);
+    var slice = cp[0..arg_size];
 
-    gpa.free((arg_ptr.?)[0..arg_size]);
+    gpa.free(slice);
 }
 // end exports to comply with host
 
@@ -143,8 +147,8 @@ fn preprocess(ally: Allocator, state: anytype) !void {
     response = HttpResponse.init(ally);
 }
 // "null" script (zero case template)
-fn vanilla(ally: Allocator, w: *HttpResponse, r: anytype) void {
-    _ = r;
+fn vanilla(ally: Allocator, w: *HttpResponse, rcv: anytype) void {
+    _ = rcv;
     _ = ally;
     w.body.appendSlice("vanilla placeholder") catch {
         w.status = 500;
@@ -203,7 +207,7 @@ pub const HttpResponse = struct {
 };
 
 // C/interop address
-pub const WasiAddr = i32;
+const WasiPtr = i32;
 // "anon" struct just for address to tuple C/interop
 const WasiStr = extern struct { ptr: [*c]u8, len: usize };
 const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };

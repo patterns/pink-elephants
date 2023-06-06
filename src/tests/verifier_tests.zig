@@ -9,35 +9,23 @@ const expectErr = std.testing.expectError;
 const expectStr = std.testing.expectEqualStrings;
 const cert = std.crypto.Certificate;
 const fmt = std.fmt;
-const log = std.log;
+const Allocator = std.mem.Allocator;
+
 // ensure signature base reconstruction works
 test "signature base input string minimal" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-    // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
-        .uri = "/foo?param=value&pet=dog",
-        .params = undefined,
-        .headers = undefined,
-        .body = undefined,
-    };
-    var arr = "{\"hello\": \"world\"}".*;
-    var buf: []u8 = &arr;
-    var fbs = std.io.fixedBufferStream(buf);
-    rcv.body = &fbs;
-    // minimal headers
-    var raw = minRawHeaders();
-    rcv.headers = raw;
+    var raw = minRawHeaders(std.testing.allocator);
+    defer raw.deinit();
 
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, raw);
-    try wrap.catalog();
+    // sim rcv request
+    var rcv = .{
+        .method = spin.http.Verb.post,
+        .uri = "/foo?param=value&pet=dog",
+        .body = "{\"hello\": \"world\"}",
+        .headers = raw,
+    };
+
     // format sig base input
-    try vfr.init(ally, raw);
-    const base = try vfr.fmtBase(rcv, wrap);
+    const base = try vfr.fmtBase(rcv);
 
     // With the headers specified, our expected signature base input string is:
     try expectStr(
@@ -48,32 +36,19 @@ test "signature base input string minimal" {
 
 // ensure signature base reconstruction works
 test "signature base input string regular" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-    // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
-        .uri = "/foo?param=value&pet=dog",
-        .params = undefined,
-        .headers = undefined,
-        .body = undefined,
-    };
-    var arr = "{\"hello\": \"world\"}".*;
-    var buf: []u8 = &arr;
-    var fbs = std.io.fixedBufferStream(buf);
-    rcv.body = &fbs;
     // headers to cover host,date,digest,content-type,content-length
-    var raw = regRawHeaders();
-    rcv.headers = raw;
+    var raw = regRawHeaders(std.testing.allocator);
+    defer raw.deinit();
+    // sim rcv request
+    var rcv = .{
+        .method = spin.http.Verb.post,
+        .uri = "/foo?param=value&pet=dog",
+        .headers = raw,
+        .body = "{\"hello\": \"world\"}",
+    };
 
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, raw);
-    try wrap.catalog();
     // format sig base input
-    try vfr.init(ally, raw);
-    const base = try vfr.fmtBase(rcv, wrap);
+    const base = try vfr.fmtBase(rcv);
 
     // With the headers specified, our expected signature base input string is:
     try expectStr(
@@ -85,33 +60,18 @@ test "signature base input string regular" {
 
 // show correctness of (input params to) SHA256 calculation
 test "min signature base in the form of SHA256 sum" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
+    var raw = minRawHeaders(std.testing.allocator);
+    defer raw.deinit();
     // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
+    var rcv = .{
+        .method = spin.http.Verb.post,
         .uri = "/foo?param=value&pet=dog",
-        .params = undefined,
-        .headers = undefined,
-        .body = undefined,
+        .headers = raw,
+        .body = "{\"hello\": \"world\"}",
     };
-    var arr = "{\"hello\": \"world\"}".*;
-    var buf: []u8 = &arr;
-    var fbs = std.io.fixedBufferStream(buf);
-    rcv.body = &fbs;
-    // minimal headers
-    var raw = minRawHeaders();
-    rcv.headers = raw;
-
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, raw);
-    try wrap.catalog();
 
     // perform calculation
-    try vfr.init(ally, raw);
-    var base = try vfr.sha256Base(rcv, wrap);
+    var base = try vfr.sha256Base(rcv);
 
     var minsum: [32]u8 = undefined;
     _ = try fmt.hexToBytes(&minsum, "f29e22e3a108abc999f5b0ed27cdb461ca30cdbd3057efa170af52c83dfc0ca6");
@@ -122,33 +82,19 @@ test "min signature base in the form of SHA256 sum" {
 
 // show correctness of (input params to) SHA256 calculation
 test "reg signature base in the form of SHA256 sum" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-    // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
-        .uri = "/foo?param=value&pet=dog",
-        .params = undefined,
-        .headers = undefined,
-        .body = undefined,
-    };
-    var arr = "{\"hello\": \"world\"}".*;
-    var buf: []u8 = &arr;
-    var fbs = std.io.fixedBufferStream(buf);
-    rcv.body = &fbs;
     // headers to cover host,date,digest,content-type,content-length
-    var raw = regRawHeaders();
-    rcv.headers = raw;
-
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, raw);
-    try wrap.catalog();
+    var raw = regRawHeaders(std.testing.allocator);
+    defer raw.deinit();
+    // sim rcv request
+    var rcv = .{
+        .method = spin.http.Verb.post,
+        .uri = "/foo?param=value&pet=dog",
+        .headers = raw,
+        .body = "{\"hello\": \"world\"}",
+    };
 
     // perform calculation
-    try vfr.init(ally, raw);
-    var base = try vfr.sha256Base(rcv, wrap);
+    var base = try vfr.sha256Base(rcv);
 
     var regsum: [32]u8 = undefined;
     _ = try fmt.hexToBytes(&regsum, "53CD4050FF72E3A6383091186168F3DF4CA2E6B3A77CBED60A02BA00C9CD8078");
@@ -160,16 +106,13 @@ test "reg signature base in the form of SHA256 sum" {
 // obtaining the verifier key usually requires a network trip so we make the step
 // accept a "harvest" function which is the purpose of this test
 test "produce verifier rsa" {
-    // TODO clean up memory leak
-    //const ally = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
+    const ally = std.testing.allocator;
     // minimal headers
-    var raw = minRawHeaders();
+    var raw = minRawHeaders(ally);
+    defer raw.deinit();
+    // preverify
+    try vfr.prev2(ally, raw);
     // fake public key via our custom harvester
-    try vfr.init(ally, raw);
     vfr.attachFetch(produceFromPublicKeyPEM);
     var pv = try vfr.produceVerifier(ally);
     defer pv.deinit(ally);
@@ -188,16 +131,13 @@ test "produce verifier rsa" {
 }
 
 test "produce verifier eff" {
-    // TODO clean up memory leak
-    //const ally = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
+    const ally = std.testing.allocator;
     // minimal headers
-    var raw = minRawHeaders();
+    var raw = minRawHeaders(ally);
+    raw.deinit();
+    // preverify
+    try vfr.prev2(ally, raw);
     // fake public key via our custom harvester
-    try vfr.init(ally, raw);
     vfr.attachFetch(produceFromEFFPEM);
     var pv = try vfr.produceVerifier(ally);
     defer pv.deinit(ally);
@@ -212,16 +152,13 @@ test "produce verifier eff" {
     try expectStr("9E1C944BF0F66D0F6D3188C413A51B8F4D1BEF39FC2C887F65AFD661FC8D01410DB7A4B130E0C0E043DA6CE0648F4761F994C19ED47281AABC0451C4E86B8C6376BF566C6D75629070C106F26A42D3B94C947B3DC6978709E669CEC04DDD230E5A9EA3EFF9440FFAF36D5D510714809B79824787A513456CA4F6994DB361FFAC12C81D0E84B6154D4CBB18611E757848D160C392446AF950767ECCCD141E50A7764842ABB8D7DEE483C5B3031A129A9FEB624ADE35409799C5E9AE14D9AEB80EADD57359174FE825E390EFCAFF315E652EABCED0239CCCAE32FF014421E47E7B61C73E2F6B5907A3A91546BD75EED39A04305AC459A6982ECF2AA4D1BEA5CF6D", txt_modulus);
 }
 test "produce verifier adafruit" {
-    // TODO clean up memory leak
-    //const ally = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
+    const ally = std.testing.allocator;
     // minimal headers
-    var raw = minRawHeaders();
+    var raw = minRawHeaders(ally);
+    raw.deinit();
+    // preverify
+    try vfr.prev2(ally, raw);
     // fake public key via our custom harvester
-    try vfr.init(ally, raw);
     vfr.attachFetch(produceFromAdafruitPEM);
     var pv = try vfr.produceVerifier(ally);
     defer pv.deinit(ally);
@@ -237,26 +174,19 @@ test "produce verifier adafruit" {
 }
 
 test "verify peop" {
-    // TODO clean up memory leak
-    //const ally = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
+    const ally = std.testing.allocator;
+    var raw = peopRawHeaders(ally);
+    defer raw.deinit();
     // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
+    var rcv = .{
+        .method = spin.http.Verb.post,
         .uri = "/users/oatmeal/inbox",
-        .params = undefined,
-        .headers = peopRawHeaders(),
+        .headers = raw,
         .body = undefined,
     };
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, rcv.headers);
-    try wrap.catalog();
+    // preverify
+    try vfr.prev2(ally, raw);
     // peop public key
-    try vfr.init(ally, rcv.headers);
     vfr.attachFetch(produceFromPeopPEM);
     var pv = try vfr.produceVerifier(ally);
     defer pv.deinit(ally);
@@ -269,7 +199,7 @@ test "verify peop" {
     try expectStr(modulus_peop, txt_modulus);
 
     // base input check
-    const base = try vfr.fmtBase(rcv, wrap);
+    const base = try vfr.fmtBase(rcv);
     try expectStr(base, base_peop_TXT);
 
     //var hashed_msg: [32]u8 = undefined;
@@ -287,27 +217,20 @@ test "verify peop" {
 }
 
 test "verifyRsa as public module" {
-    // TODO clean up memory leak
-    //const ally = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const ally = arena.allocator();
-
+    const ally = std.testing.allocator;
+    var raw = honkRawHeaders(ally);
+    defer raw.deinit();
     // sim rcv request
-    var rcv = spin.Request{
-        .ally = ally,
-        .method = @enumToInt(vfr.Verb.post),
-        .uri = "/inbox",
-        .params = undefined,
-        .headers = honkRawHeaders(),
-        .body = undefined,
-    };
-    // wrap raw headers
-    var wrap = phi.HeaderList.init(ally, rcv.headers);
-    try wrap.catalog();
+    //var rcv = .{
+    //    .method = spin.http.Verb.post,
+    //    .uri = "/inbox",
+    //    .headers = raw,
+    //    .body = undefined,
+    //};
+    // preverify
+    try vfr.prev2(ally, raw);
     // honk public key
-    try vfr.init(ally, rcv.headers);
-    vfr.attachFetch(produceFromHonkPEM);
+    //vfr.attachFetch(produceFromHonkPEM);
     ////const base = try vfr.fmtBase(rcv, wrap);
     ////log.warn("input base, {s}", .{base});
 
@@ -349,67 +272,70 @@ fn produceFromPeopPEM(ally: std.mem.Allocator, proxy: []const u8) !vfr.ParsedVer
 }
 
 // simulate raw header fields
-fn minRawHeaders() phi.RawHeaders {
-    var list: phi.RawHeaders = undefined;
-    list[0] = phi.RawField{ .fld = "host", .val = "example.com" };
-    list[1] = phi.RawField{ .fld = "date", .val = "Sun, 05 Jan 2014 21:31:40 GMT" };
-    list[2] = phi.RawField{ .fld = "content-type", .val = "application/json" };
-    list[3] = phi.RawField{ .fld = "digest", .val = "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=" };
-    list[4] = phi.RawField{ .fld = "content-length", .val = "18" };
-    list[5] = phi.RawField{
-        .fld = "signature",
-        .val = "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date\",signature=\"qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"",
-    };
+fn minRawHeaders(ally: Allocator) std.http.Headers {
+    var h2 = std.http.Headers.init(ally);
+    h2.append("host", "example.com") catch @panic("oom hd");
+    h2.append("date", "Sun, 05 Jan 2014 21:31:40 GMT") catch @panic("oom hd");
+    h2.append("content-type", "application/json") catch @panic("oom hd");
+    h2.append("digest", "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=") catch @panic("oom hd");
+    h2.append("content-length", "18") catch @panic("oom hd");
 
-    return list;
+    h2.append(
+        "signature",
+        "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date\",signature=\"qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"",
+    ) catch @panic("oom hd");
+
+    return h2;
 }
 
 // simulate covered raw headers
-fn regRawHeaders() phi.RawHeaders {
-    var list: phi.RawHeaders = undefined;
-    list[0] = phi.RawField{ .fld = "host", .val = "example.com" };
-    list[1] = phi.RawField{ .fld = "date", .val = "Sun, 05 Jan 2014 21:31:40 GMT" };
-    list[2] = phi.RawField{ .fld = "content-type", .val = "application/json" };
-    list[3] = phi.RawField{ .fld = "digest", .val = "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=" };
-    list[4] = phi.RawField{ .fld = "content-length", .val = "18" };
-    list[5] = phi.RawField{
-        .fld = "signature",
-        .val = "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date content-type digest content-length\",signature=\"qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"",
-    };
+fn regRawHeaders(ally: Allocator) std.http.Headers {
+    var h2 = std.http.Headers.init(ally);
+    h2.append("host", "example.com") catch @panic("oom hd");
+    h2.append("date", "Sun, 05 Jan 2014 21:31:40 GMT") catch @panic("oom hd");
+    h2.append("content-type", "application/json") catch @panic("oom hd");
+    h2.append("digest", "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=") catch @panic("oom hd");
+    h2.append("content-length", "18") catch @panic("oom hd");
 
-    return list;
+    h2.append(
+        "signature",
+        "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date content-type digest content-length\",signature=\"qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"",
+    ) catch @panic("oom hd");
+
+    return h2;
 }
 
 // accept event header fields
-fn honkRawHeaders() phi.RawHeaders {
-    var list: phi.RawHeaders = undefined;
-    list[0] = phi.RawField{ .fld = "host", .val = "cloud-start-rkqucga6.fermyon.app" };
-    list[1] = phi.RawField{ .fld = "date", .val = "Mon, 13 Mar 2023 05:42:45 GMT" };
-    list[2] = phi.RawField{ .fld = "content-type", .val = "application/ld+json" };
-    list[3] = phi.RawField{ .fld = "digest", .val = "SHA-256=RwHPmgmFFXw+r9NqKuEAeysISvs3eW7BUW/bCvZ41ig=" };
-    list[4] = phi.RawField{ .fld = "content-length", .val = "580" };
-    list[5] = phi.RawField{
-        .fld = "signature",
-        .val = "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) date host content-type digest\",signature=\"eMs2giWWQyJNyoSK0PaUGzcdV2JqVM0Se1PMbmOaL/kQF1mtPhxhkkonONpZK9EnYw6yglmQZYbSfOVz1r0/ThSuNYDvLv8zoCa2EkscYIRVZ4F4kBdf4DdtkqH+svj3Mn9haIRdmALTAGsJzPn5EUoblofhgdW1CWOySEPuHueDEV9+kTpHC6o6wwnioKwSHG4/U5ZO9xdvFuU0b0nh4NE9n/pSiilktnsQGFh/AVK3MAlR1P4fQtTN6TRu6WjazoGCPSAa3Yu30FwKVICXyL909UkfAeCEZerT9zluSEteXsUgjFZdGkcfizhMsU0rkmasDHXPrNJaznkqB3kXfg==\"",
-    };
+fn honkRawHeaders(ally: Allocator) std.http.Headers {
+    var h2 = std.http.Headers.init(ally);
+    h2.append("host", "cloud-start-rkqucga6.fermyon.app") catch @panic("oom hd");
+    h2.append("date", "Mon, 13 Mar 2023 05:42:45 GMT") catch @panic("oom hd");
+    h2.append("content-type", "application/ld+json") catch @panic("oom hd");
+    h2.append("digest", "SHA-256=RwHPmgmFFXw+r9NqKuEAeysISvs3eW7BUW/bCvZ41ig=") catch @panic("oom hd");
+    h2.append("content-length", "580") catch @panic("oom hd");
 
-    return list;
+    h2.append(
+        "signature",
+        "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) date host content-type digest\",signature=\"eMs2giWWQyJNyoSK0PaUGzcdV2JqVM0Se1PMbmOaL/kQF1mtPhxhkkonONpZK9EnYw6yglmQZYbSfOVz1r0/ThSuNYDvLv8zoCa2EkscYIRVZ4F4kBdf4DdtkqH+svj3Mn9haIRdmALTAGsJzPn5EUoblofhgdW1CWOySEPuHueDEV9+kTpHC6o6wwnioKwSHG4/U5ZO9xdvFuU0b0nh4NE9n/pSiilktnsQGFh/AVK3MAlR1P4fQtTN6TRu6WjazoGCPSAa3Yu30FwKVICXyL909UkfAeCEZerT9zluSEteXsUgjFZdGkcfizhMsU0rkmasDHXPrNJaznkqB3kXfg==\"",
+    ) catch @panic("oom hd");
+
+    return h2;
 }
 
 // (follow) request fields
-fn peopRawHeaders() phi.RawHeaders {
-    var list: phi.RawHeaders = undefined;
-    list[0] = phi.RawField{ .fld = "host", .val = "mastodon.social" };
-    list[1] = phi.RawField{ .fld = "date", .val = "Sun, 30 Apr 2023 04:55:37 GMT" };
+fn peopRawHeaders(ally: Allocator) std.http.Headers {
+    var h2 = std.http.Headers.init(ally);
+    h2.append("host", "mastodon.social") catch @panic("oom hd");
+    h2.append("date", "Sun, 30 Apr 2023 04:55:37 GMT") catch @panic("oom hd");
 
-    list[2] = phi.RawField{ .fld = "digest", .val = "SHA-256=a9IYUmhfuVYZQnUuiqFWHhLnxk67FUjWF4W7vewjGKA=" };
+    h2.append("digest", "SHA-256=a9IYUmhfuVYZQnUuiqFWHhLnxk67FUjWF4W7vewjGKA=") catch @panic("oom hd");
 
-    list[3] = phi.RawField{
-        .fld = "signature",
-        .val = "keyId=\"Testfoll\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date digest\",signature=\"ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\"",
-    };
+    h2.append(
+        "signature",
+        "keyId=\"Testfoll\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date digest\",signature=\"ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\"",
+    ) catch @panic("oom hd");
 
-    return list;
+    return h2;
 }
 
 var public_key_PEM =

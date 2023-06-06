@@ -37,19 +37,13 @@ pub fn enqueue(ally: std.mem.Allocator, content: std.json.ValueTree) !void {
 // capture extra request detail to debug/tests
 pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     const tree = option.tree;
-    const req = option.req;
+    const rcv = option.rcv;
 
     var bucket = std.ArrayList(u8).init(ally);
     defer bucket.deinit();
     try tree.root.jsonStringify(.{}, bucket.writer());
     try bucket.appendSlice("##DEBUG##");
-
-    var rownum: usize = 0;
-    while (rownum < req.headers.len) : (rownum += 1) {
-        const tup = req.headers[rownum];
-        if (tup.fld.len == 0) break;
-        try bucket.writer().print(";{s}#{s}", .{ tup.fld, tup.val });
-    }
+    try rcv.headers.format("{s}", .{}, bucket.writer());
 
     // duplicate payload to sentinel-terminated
     const cpayload = try ally.dupeZ(u8, bucket.items);

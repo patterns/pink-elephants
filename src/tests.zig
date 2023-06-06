@@ -1,9 +1,8 @@
-test "Web" {
-    _ = @import("web/phi.zig");
-}
-test "Verifier" {
+////const std = @import("std");
+
+test {
+    ////std.testing.refAllDecls(@This());
+
     _ = @import("tests/verifier_tests.zig");
-}
-test "MbedTLS" {
     _ = @import("tests/pkcs1_tests.zig");
 }

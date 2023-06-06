@@ -15,13 +15,12 @@ pub fn get(uri: []const u8, h: []was.Xtup) !void {
 }
 
 pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anytype) ![]const u8 {
-    // will payload exceed 1K?
     var buf = std.ArrayList(u8).init(ally);
     defer buf.deinit();
     try std.json.stringify(payload, .{}, buf.writer());
     const js = try ally.dupeZ(u8, buf.items);
 
-    //TODO refactor to deal with general set of headers
+    //TODO refactor to accomodate generalized set of headers
     //h.append("content-type", "application/json");
     const literal_fld = "content-type";
     const literal_val = "application/json";

@@ -14,8 +14,8 @@ pub fn main() void {
 const actor_json = @embedFile("actor.json");
 const followers_json = @embedFile("followers.json");
 const following_json = @embedFile("following.json");
-fn actorScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
-    if (r.method == 1) return status.nomethod(w);
+fn actorScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
+    if (rcv.method != spin.http.Verb.get) return status.nomethod(w);
 
     w.headers.put("Content-Type", "application/json") catch {
         log.err(" response header", .{});
@@ -27,7 +27,7 @@ fn actorScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     // ask host for actor setting
     const who = spin.config.selfActor() orelse "00000";
 
-    const branch = unknownActor(ally, r.uri, who) catch {
+    const branch = unknownActor(ally, rcv.uri, who) catch {
         log.err("allocPrint, OutOfMem", .{});
         return status.internal(w);
     };

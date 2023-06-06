@@ -4,14 +4,15 @@ const wasi = @import("wasi.zig");
 const Allocator = std.mem.Allocator;
 
 // request.method
-pub fn method() HttpMethod {
-    const eq = std.ascii.eqlIgnoreCase;
+pub fn method() Verb {
+    //const eq = std.ascii.eqlIgnoreCase;
     const cm = context.get("method").?;
 
-    if (eq("get", cm)) return 0;
-    if (eq("post", cm)) return 1;
-
-    std.debug.assert(unreachable);
+    const en = Verb.fromDescr(cm);
+    return en;
+    //if (eq("get", cm)) return 0;
+    //if (eq("post", cm)) return 1;
+    //std.debug.assert(unreachable);
 }
 // request.body
 pub fn body() [:0]const u8 {
@@ -28,7 +29,7 @@ pub fn headers() std.http.Headers {
 
 //TODO auth params (leaf nodes of signature header)
 
-// request context
+// the request received
 pub fn init(ally: Allocator, state: anytype) !void {
     try context.init(ally, state);
 }
@@ -66,13 +67,14 @@ const context = struct {
         }
         try map.put("body", cb);
 
-        var cm: [:0]const u8 = undefined;
-        switch (verb) {
-            0 => cm = "get",
-            1 => cm = "post",
-            else => unreachable,
-        }
-        try map.put("method", cm);
+        //var cm: [:0]const u8 = undefined;
+        //switch (verb) {
+        //    0 => cm ="get",
+        //    1 => cm ="post",
+        //    else => unreachable,
+        //}
+        const en = @intToEnum(Verb, verb);
+        try map.put("method", en.toDescr());
 
         raw = try std.BoundedArray(std.http.Field, 128).fromSlice(try wasi.xslice(ally, hdr_ptr, hdr_len));
         hx2 = std.http.Headers.init(ally);
@@ -109,5 +111,50 @@ const WasiPtr = i32;
 const WasiStr = extern struct { ptr: [*c]u8, len: usize };
 const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };
 
-/// HTTP method verb.
-pub const HttpMethod = u8;
+// http method / verbs (TODO don't expose publicly if possible)
+pub const Verb = enum(u8) {
+    get = 0,
+    post = 1,
+    put = 2,
+    delete = 3,
+    patch = 4,
+    head = 5,
+    options = 6,
+
+    // description (name) format of the enum
+    pub fn toDescr(self: Verb) [:0]const u8 {
+        //return DescrTable[@enumToInt(self)];
+        // insted of table, switch
+        switch (self) {
+            .get => return "get",
+            .post => return "post",
+            .put => return "put",
+            .delete => return "delete",
+            .patch => return "patch",
+            .head => return "head",
+            .options => return "options",
+        }
+    }
+
+    // convert to enum
+    pub fn fromDescr(text: []const u8) Verb {
+        const eq = std.ascii.eqlIgnoreCase;
+        for (DescrTable, 0..) |row, rownum| {
+            if (eq(row, text)) {
+                return @intToEnum(Verb, rownum);
+            }
+        }
+        unreachable;
+    }
+    // TODO remove the table in favor of switch
+    // lookup table with the description
+    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch",
+        "head",
+        "options",
+    };
+};
