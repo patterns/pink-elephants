@@ -2,7 +2,7 @@ const std = @import("std");
 const pkcs1 = @import("pkcs1");
 
 const spin = @import("../spin/lib.zig");
-const phi = @import("../web/phi.zig");
+
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const log = std.log;
@@ -97,74 +97,22 @@ fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld:
 // in Mastodon server crosstalk.
 const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
-var impl = ByRSASignerImpl{ .auth = undefined, .parsed = undefined, .prev = undefined };
+var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined };
 var produce: ProduceVerifierFn = undefined;
 
-pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
-    impl.auth = phi.AuthParams.init(ally, raw);
-    try impl.auth.preverify();
-}
+//pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
+//    impl.auth = phi.AuthParams.init(ally, raw);
+//    try impl.auth.preverify();
+//}
 
 const ByRSASignerImpl = struct {
     const Self = @This();
 
-    auth: phi.AuthParams,
+    //    auth: phi.AuthParams,
     parsed: ParsedVerifier,
     prev: std.http.Headers,
 
     // reconstruct input-string
-    pub fn fmtBase(
-        self: Self,
-        verb: spin.http.Verb,
-        uri: []const u8,
-        headers: phi.HeaderList,
-    ) ![]const u8 {
-        // each signature subheader has its value encased in quotes
-        const shd = self.auth.get(.sub_headers).value;
-        const recipe = mem.trim(u8, shd, "\"");
-        var it = mem.tokenize(u8, recipe, " ");
-
-        const first = it.next();
-        if (first == null) return error.SignatureDelim;
-
-        // TODO double-check this, seen docs that begin with other subheaders
-        if (!mem.startsWith(u8, first.?, "(request-target)")) {
-            log.err("Httpsig leader format, {s}", .{first.?});
-            return error.SignatureFormat;
-        }
-
-        // prep bucket for base elements (multiline)
-        var acc: [512]u8 = undefined;
-        var chan = std.io.StreamSource{ .buffer = std.io.fixedBufferStream(&acc) };
-        var out = chan.writer();
-
-        // base leader
-        try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
-        // base elements
-        while (it.next()) |base_el| {
-            if (streq("host", base_el)) {
-                const name = headers.get(.host).value;
-                try out.print("{s}host: {s}", .{ lf_codept, name });
-            } else if (streq("date", base_el)) {
-                //todo check timestamp
-                const date = headers.get(.date).value;
-                try out.print("{s}date: {s}", .{ lf_codept, date });
-            } else if (streq("digest", base_el)) {
-                //todo check digest
-                const digest = headers.get(.digest).value;
-                try out.print("{s}digest: {s}", .{ lf_codept, digest });
-            } else {
-                // TODO handle USER-DEFINED
-                const kind = phi.Kind.fromDescr(base_el);
-                const val = headers.get(kind).value;
-
-                const lower = base_el;
-                try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
-            }
-        }
-
-        return chan.buffer.getWritten();
-    }
     pub fn fmtBase2(self: Self, rcv: anytype) ![]const u8 {
         const verb: spin.http.Verb = rcv.method;
         const uri: []const u8 = rcv.uri;
@@ -441,3 +389,5 @@ pub const VerifierError = error{
 
 const lf_codept = "\u{000A}";
 const lf_literal = 0x0A;
+const qm_codept = "\u{0022}";
+const qm_literal = 0x22;

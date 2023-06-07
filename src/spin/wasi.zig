@@ -6,50 +6,28 @@ const gpa = gpal.allocator();
 
 // TODO lots to refactor as we want to leverage for use in outbound
 //      (and consolidate out from lib)
-// raw-headers can probably be replaced by std.http.Headers
-const phi = @import("../web/phi.zig");
 
-// convert std.http.Headers to array
-//pub fn toTuples(ally: Allocator, h: std.http.Headers) !std.ArrayList(Xtup) {
-// purpose, because to pass the headers to the host we need to be in
-// the interop format of records in contiguous memory.
-
-// todo which namespace is the proper home? (outbound?)
-
+// convert raw headers which are C array into array-list
+//pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(Xtup) {
 //    var arr = std.ArrayList(Xtup).init(ally);
-//    var it = h.index.iterator();
-//    while (it.next()) |entry| {
-
-//var key = try ally.dupe(u8, entry.key_ptr.*);
-//var val = try ally.dupe(u8, entry.val_ptr.*);
-//try arr.append( Xtup{
-//        .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
-//        .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
-//});
-//    }
+//        var iter = headers.iterator();
+//        while (iter.next()) |entry| {
+//            var key = ally.dupe(u8, entry.key_ptr.*) catch {
+//                @panic("FAIL headers key dupe");
+//            };
+//            var val = ally.dupe(u8, entry.value_ptr.*) catch {
+//                @panic("FAIL headers val dupe");
+//            };
+//            var tup = Xtup{
+//                .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
+//                .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
+//            };
+//            arr.append(tup) catch {
+//                @panic("FAIL headers slice");
+//            };
+//        }
 //    return arr;
 //}
-// convert raw headers which are C array into array-list
-pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(Xtup) {
-    var arr = std.ArrayList(Xtup).init(ally);
-    var iter = headers.iterator();
-    while (iter.next()) |entry| {
-        var key = ally.dupe(u8, entry.key_ptr.*) catch {
-            @panic("FAIL headers key dupe");
-        };
-        var val = ally.dupe(u8, entry.value_ptr.*) catch {
-            @panic("FAIL headers val dupe");
-        };
-        var tup = Xtup{
-            .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
-            .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
-        };
-        arr.append(tup) catch {
-            @panic("FAIL headers slice");
-        };
-    }
-    return arr;
-}
 
 // C/interop (in the direction of from guest to host)
 ////pub const Xcstr = [:0]u8;
@@ -61,9 +39,9 @@ pub const Xstr = extern struct { ptr: [*c]u8, len: usize };
 pub const Xtup = extern struct { f0: Xstr, f1: Xstr };
 
 // HTTP status codes.
-const HttpStatus = u16;
+////const HttpStatus = u16;
 // HTTP method verb.
-const HttpMethod = u8;
+////const HttpMethod = u8;
 
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
@@ -110,23 +88,22 @@ fn gpfree(ptr: ?[*]u8, len: usize) void {
 }
 
 // list conversion from C arrays
-//(todo ?will replace raw-headers with std.http.Headers)
-pub fn xlist(ally: Allocator, addr: Xptr, rowcount: i32) !phi.RawHeaders {
-    var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
-    const max = @intCast(usize, rowcount);
-    var list: phi.RawHeaders = undefined;
+//pub fn xlist(ally: Allocator, addr: Xptr, rowcount: i32) !phi.RawHeaders {
+//    var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
+//    const max = @intCast(usize, rowcount);
+//    var list: phi.RawHeaders = undefined;
 
-    var rownum: usize = 0;
-    while (rownum < max) : (rownum +%= 1) {
-        var tup = record[rownum];
+//    var rownum: usize = 0;
+//    while (rownum < max) : (rownum +%= 1) {
+//        var tup = record[rownum];
 
-        list[rownum] = phi.RawField{
-            .fld = try std.fmt.allocPrint(ally, "{s}", .{tup.f0.ptr[0..tup.f0.len]}),
-            .val = try std.fmt.allocPrint(ally, "{s}", .{tup.f1.ptr[0..tup.f1.len]}),
-        };
-    }
-    return list;
-}
+//        list[rownum] = phi.RawField {
+//           .fld = try std.fmt.allocPrint(ally, "{s}", .{tup.f0.ptr[0..tup.f0.len]}),
+//           .val = try std.fmt.allocPrint(ally, "{s}", .{tup.f1.ptr[0..tup.f1.len]}),
+//        };
+//    }
+//    return list;
+//}
 
 // C array to slice
 pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {

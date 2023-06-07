@@ -2,7 +2,6 @@ const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
 const vfr = @import("../verifier/verifier.zig");
-const phi = @import("../web/phi.zig");
 
 const expect = std.testing.expect;
 const expectErr = std.testing.expectError;
@@ -14,6 +13,7 @@ const Allocator = std.mem.Allocator;
 // ensure signature base reconstruction works
 test "signature base input string minimal" {
     var raw = minRawHeaders(std.testing.allocator);
+    //defer raw.clearAndFree();
     defer raw.deinit();
 
     // sim rcv request
@@ -61,6 +61,7 @@ test "signature base input string regular" {
 // show correctness of (input params to) SHA256 calculation
 test "min signature base in the form of SHA256 sum" {
     var raw = minRawHeaders(std.testing.allocator);
+    //defer raw.clearAndFree();
     defer raw.deinit();
     // sim rcv request
     var rcv = .{
@@ -109,6 +110,7 @@ test "produce verifier rsa" {
     const ally = std.testing.allocator;
     // minimal headers
     var raw = minRawHeaders(ally);
+    //defer raw.clearAndFree();
     defer raw.deinit();
     // preverify
     try vfr.prev2(ally, raw);
@@ -134,7 +136,8 @@ test "produce verifier eff" {
     const ally = std.testing.allocator;
     // minimal headers
     var raw = minRawHeaders(ally);
-    raw.deinit();
+    //defer raw.clearAndFree();
+    defer raw.deinit();
     // preverify
     try vfr.prev2(ally, raw);
     // fake public key via our custom harvester
@@ -155,7 +158,8 @@ test "produce verifier adafruit" {
     const ally = std.testing.allocator;
     // minimal headers
     var raw = minRawHeaders(ally);
-    raw.deinit();
+    //defer raw.clearAndFree();
+    defer raw.deinit();
     // preverify
     try vfr.prev2(ally, raw);
     // fake public key via our custom harvester
@@ -282,9 +286,13 @@ fn minRawHeaders(ally: Allocator) std.http.Headers {
 
     h2.append(
         "signature",
-        "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date\",signature=\"qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\"",
+        "keyId=\x22Test\x22,algorithm=\x22rsa-sha256\x22,headers=\x22(request-target) host date\x22,signature=\x22qdx+H7PHHDZgy4y/Ahn9Tny9V3GP6YgBPyUXMmoxWtLbHpUnXS2mg2+SbrQDMCJypxBLSPQR2aAjn7ndmw2iicw3HMbe8VfEdKFYRqzic+efkb3nndiv/x1xSHDJWeSWkx3ButlYSuBskLu6kd9Fswtemr3lgdDEmn04swr2Os0=\x22",
     ) catch @panic("oom hd");
 
+    var w = std.ArrayList(u8).init(ally);
+    defer w.deinit();
+    h2.format("{s}", .{}, w.writer()) catch @panic("headers fmt");
+    std.debug.print("\n?,h2 {s}", .{w.items});
     return h2;
 }
 
