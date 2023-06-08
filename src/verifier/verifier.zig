@@ -2,7 +2,7 @@ const std = @import("std");
 const pkcs1 = @import("pkcs1");
 
 const spin = @import("../spin/lib.zig");
-const phi = @import("../web/phi.zig");
+
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const log = std.log;
@@ -23,19 +23,21 @@ pub fn attachFetch(fetch: ProduceVerifierFn) void {
 }
 
 // calculate SHA256 sum of signature base input str
-pub fn sha256Base(req: spin.Request, headers: phi.HeaderList) ![sha256_len]u8 {
-    var buffer: [sha256_len]u8 = undefined;
-    const base = try impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
-    std.crypto.hash.sha2.Sha256.hash(base, &buffer, .{});
-    return buffer;
+pub fn sha256Base(rcv: anytype, sum: *[32]u8) !void {
+    // SHA256 creates digests of 32 bytes.
+    // (buffer at 512, may be up to 8192?)
+    var buffer: [512]u8 = undefined;
+    var chan = std.io.fixedBufferStream(&buffer);
+    try impl.fmtBase(rcv, chan.writer());
+    const base = chan.getWritten();
+
+    //std.debug.print("base: {s}\x0A", .{base});
+    std.crypto.hash.sha2.Sha256.hash(base, sum, .{});
 }
 
 // reconstruct the signature base input str
-//pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
-//    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
-//}
-pub fn fmtBase2(req: anytype, h2: std.http.Headers) ![]const u8 {
-    return impl.fmtBase2(@intToEnum(Verb, req.method), req.uri, h2);
+pub fn fmtBase(rcv: anytype) ![]const u8 {
+    return impl.fmtBase2(rcv);
 }
 
 // verify signature
@@ -97,32 +99,42 @@ fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld:
 // in Mastodon server crosstalk.
 const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
-var impl = ByRSASignerImpl{ .auth = undefined, .parsed = undefined, .prev = undefined };
+var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined };
 var produce: ProduceVerifierFn = undefined;
 
-pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
-    impl.auth = phi.AuthParams.init(ally, raw);
-    try impl.auth.preverify();
+//pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
+//    impl.auth = phi.AuthParams.init(ally, raw);
+//    try impl.auth.preverify();
+//}
+pub fn deinit() void {
+    impl.deinit();
 }
 
 const ByRSASignerImpl = struct {
     const Self = @This();
-
-    auth: phi.AuthParams,
     parsed: ParsedVerifier,
     prev: std.http.Headers,
 
+    fn deinit(self: *Self) void {
+        //if (self.prev == undefined) return;
+        self.prev.clearAndFree();
+        self.prev.deinit();
+    }
     // reconstruct input-string
-    pub fn fmtBase(
+    fn fmtBase(
         self: Self,
-        verb: Verb,
-        uri: []const u8,
-        headers: phi.HeaderList,
-    ) ![]const u8 {
+        rcv: anytype,
+        out: std.io.FixedBufferStream([]u8).Writer,
+    ) !void {
+        const verb: spin.http.Verb = rcv.method;
+        const uri: []const u8 = rcv.uri;
+        const h2: std.http.Headers = rcv.headers;
+
         // each signature subheader has its value encased in quotes
-        const shd = self.auth.get(.sub_headers).value;
-        const recipe = mem.trim(u8, shd, "\"");
-        var it = mem.tokenize(u8, recipe, " ");
+        const shd = self.prev.getFirstValue("headers");
+        if (shd == null) return error.LeafHeaders;
+        const recipe = mem.trim(u8, shd.?, "\x22");
+        var it = mem.tokenize(u8, recipe, "\x20");
 
         const first = it.next();
         if (first == null) return error.SignatureDelim;
@@ -133,49 +145,44 @@ const ByRSASignerImpl = struct {
             return error.SignatureFormat;
         }
 
-        // prep bucket for base elements (multiline)
-        var acc: [512]u8 = undefined;
-        var chan = std.io.StreamSource{ .buffer = std.io.fixedBufferStream(&acc) };
-        var out = chan.writer();
-
         // base leader
         try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
         // base elements
         while (it.next()) |base_el| {
             if (streq("host", base_el)) {
-                const name = headers.get(.host).value;
-                try out.print("{s}host: {s}", .{ lf_codept, name });
+                if (h2.getFirstValue("host")) |name| {
+                    try out.print("{s}host: {s}", .{ lf_codept, name });
+                }
             } else if (streq("date", base_el)) {
                 //todo check timestamp
-                const date = headers.get(.date).value;
-                try out.print("{s}date: {s}", .{ lf_codept, date });
+                if (h2.getFirstValue("date")) |date| {
+                    try out.print("{s}date: {s}", .{ lf_codept, date });
+                }
             } else if (streq("digest", base_el)) {
                 //todo check digest
-                const digest = headers.get(.digest).value;
-                try out.print("{s}digest: {s}", .{ lf_codept, digest });
+                if (h2.getFirstValue("digest")) |digest| {
+                    try out.print("{s}digest: {s}", .{ lf_codept, digest });
+                }
             } else {
-                // TODO handle USER-DEFINED
-                const kind = phi.Kind.fromDescr(base_el);
-                const val = headers.get(kind).value;
-
-                const lower = base_el;
-                try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
+                if (h2.getFirstValue(base_el)) |val| {
+                    const lower = base_el;
+                    try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
+                }
             }
         }
-
-        return chan.buffer.getWritten();
     }
-    pub fn fmtBase2(
-        self: Self,
-        verb: Verb,
-        uri: []const u8,
-        h2: std.http.Headers,
-    ) ![]const u8 {
+
+    // reconstruct input-string
+    pub fn fmtBase2(self: Self, rcv: anytype) ![]const u8 {
+        const verb: spin.http.Verb = rcv.method;
+        const uri: []const u8 = rcv.uri;
+        const h2: std.http.Headers = rcv.headers;
+
         // each signature subheader has its value encased in quotes
         const shd = self.prev.getFirstValue("headers");
         if (shd == null) return error.LeafHeaders;
-        const recipe = mem.trim(u8, shd.?, "\"");
-        var it = mem.tokenize(u8, recipe, " ");
+        const recipe = mem.trim(u8, shd.?, "\x22");
+        var it = mem.tokenize(u8, recipe, "\x20");
 
         const first = it.next();
         if (first == null) return error.SignatureDelim;
@@ -241,8 +248,10 @@ const ByRSASignerImpl = struct {
         const c_exp: [:0]u8 = try ally.dupeZ(u8, pkco.exponent);
         defer ally.free(c_mod);
         defer ally.free(c_exp);
-        std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
-        std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
+        //std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
+        //std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
+        log.debug("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
+        log.debug("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
 
         // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
@@ -363,9 +372,6 @@ pub fn fromPEM(
     };
 }
 
-// SHA256 creates digests of 32 bytes.
-const sha256_len: usize = 32;
-
 // limit of RSA pub key
 fn maxPEM() usize {
     // assume 4096 bits is largest RSA
@@ -393,51 +399,56 @@ pub const VerifierError = error{
 };
 
 // http method / verbs (TODO don't expose publicly if possible)
-pub const Verb = enum(u8) {
-    get = 0,
-    post = 1,
-    put = 2,
-    delete = 3,
-    patch = 4,
-    head = 5,
-    options = 6,
+//pub const Verb = enum(u8) {
+//    get = 0,
+//    post = 1,
+//    put = 2,
+//    delete = 3,
+//    patch = 4,
+//    head = 5,
+//    options = 6,
 
-    // description (name) format of the enum
-    pub fn toDescr(self: Verb) [:0]const u8 {
-        //return DescrTable[@enumToInt(self)];
-        // insted of table, switch
-        switch (self) {
-            .get => return "get",
-            .post => return "post",
-            .put => return "put",
-            .delete => return "delete",
-            .patch => return "patch",
-            .head => return "head",
-            .options => return "options",
-        }
-    }
+// description (name) format of the enum
+//    pub fn toDescr(self: Verb) [:0]const u8 {
+//return DescrTable[@enumToInt(self)];
+// insted of table, switch
+//        switch (self) {
+//            .get => return "get",
+//            .post => return "post",
+//            .put => return "put",
+//            .delete => return "delete",
+//            .patch => return "patch",
+//            .head => return "head",
+//            .options => return "options",
+//        }
+//    }
 
-    // convert to enum
-    pub fn fromDescr(text: []const u8) Verb {
-        for (DescrTable, 0..) |row, rownum| {
-            if (streq(row, text)) {
-                return @intToEnum(Verb, rownum);
-            }
-        }
-        unreachable;
-    }
-    // TODO remove the table in favor of switch
-    // lookup table with the description
-    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
-        "get",
-        "post",
-        "put",
-        "delete",
-        "patch",
-        "head",
-        "options",
-    };
-};
+// convert to enum
+//    pub fn fromDescr(text: []const u8) Verb {
+//        for (DescrTable, 0..) |row, rownum| {
+//            if (streq(row, text)) {
+//                return @intToEnum(Verb, rownum);
+//            }
+//        }
+//        unreachable;
+//    }
+// TODO remove the table in favor of switch
+// lookup table with the description
+//    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
+//        "get",
+//        "post",
+//        "put",
+//        "delete",
+//        "patch",
+//        "head",
+//        "options",
+//    };
+
+//};
 
 const lf_codept = "\u{000A}";
 const lf_literal = 0x0A;
+const qm_codept = "\u{0022}";
+const qm_literal = 0x22;
+const sp_codept = "\u{0020}";
+const sp_literal = 0x20;

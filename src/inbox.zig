@@ -13,8 +13,8 @@ comptime {
     spin.handle(inboxScript);
 }
 
-fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
-    const bad = unknownSignature(ally, r) catch true;
+fn inboxScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
+    const bad = unknownSignature(ally, rcv) catch true;
 
     if (bad) {
         //todo worth logging in the early tests to see common failures?
@@ -22,7 +22,7 @@ fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     }
 
     //TODO limit body content to 1MB
-    var tree = str.toTree(ally, r.body) catch {
+    var tree = str.toTree(ally, rcv.body) catch {
         log.err("unexpected json format\n", .{});
         return status.unprocessable(w);
     };
@@ -30,10 +30,10 @@ fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
 
     // capture for now (build processing later/next)
     ////spin.redis.enqueue(allocator, logev) catch {
-    //spin.redis.debugDetail(ally, .{ .tree = tree, .req = r }) catch {
-    //    log.err("save failed", .{});
-    //    return status.internal(w);
-    //};
+    spin.redis.debugDetail(ally, .{ .tree = tree, .rcv = rcv }) catch {
+        log.err("save failed", .{});
+        return status.internal(w);
+    };
 
     w.headers.put("Content-Type", "application/json") catch {
         log.err("inbox header, OutOfMem", .{});
@@ -42,13 +42,13 @@ fn inboxScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
     status.ok(w);
 }
 
-fn unknownSignature(ally: Allocator, r: anytype) !bool {
+fn unknownSignature(ally: Allocator, rcv: anytype) !bool {
     const bad = true;
 
     ////try vfr.init(ally, r.headers);
-    try vfr.prev2(ally, r.headers);
+    try vfr.prev2(ally, rcv.headers);
     vfr.attachFetch(customVerifier);
-    const base = try vfr.fmtBase2(r, r.headers);
+    const base = try vfr.fmtBase(rcv);
     _ = try vfr.bySigner(ally, base);
 
     // checks passed

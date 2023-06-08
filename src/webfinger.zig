@@ -14,10 +14,10 @@ pub fn main() void {
 }
 
 const webfinger_json = @embedFile("webfinger.json");
-fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, r: anytype) void {
-    if (r.method != 0) return status.nomethod(w);
+fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
+    if (rcv.method != spin.http.Verb.get) return status.nomethod(w);
 
-    const unknown = unknownResource(ally, r.uri);
+    const unknown = unknownResource(ally, rcv.uri);
     if (unknown) return status.bad(w);
 
     w.headers.put("Content-Type", "application/jrd+json") catch {

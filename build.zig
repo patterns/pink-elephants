@@ -1,9 +1,9 @@
 const std = @import("std");
 // export symbols (in 0.11 see zig/issues/14139)
-const export_names = [_][]const u8 {
-        "canonical_abi_free",
-        "canonical_abi_realloc",
-        "handle-http-request",
+const export_names = [_][]const u8{
+    "canonical_abi_free",
+    "canonical_abi_realloc",
+    "handle-http-request",
 };
 
 pub fn build(b: *std.Build) void {
@@ -52,7 +52,6 @@ pub fn build(b: *std.Build) void {
     lib.defineCMacro("MBEDTLS_PLATFORM_C", "1");
 
     const sources = [_][]const u8{
-
         libroot ++ "entropy.c",
         libroot ++ "hmac_drbg.c",
         libroot ++ "md.c",
@@ -70,7 +69,6 @@ pub fn build(b: *std.Build) void {
         libroot ++ "error.c",
         libroot ++ "hash_info.c",
         libroot ++ "platform.c",
-
     };
 
     lib.addCSourceFiles(&sources, &cflags);
@@ -81,9 +79,8 @@ pub fn build(b: *std.Build) void {
 
     // internal module for zig code to consume
     const pkcs1 = b.createModule(
-        .{ .source_file = .{ .path = "src/verifier/pkcs1.zig" }},
+        .{ .source_file = .{ .path = "src/verifier/pkcs1.zig" } },
     );
-
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
@@ -97,15 +94,13 @@ pub fn build(b: *std.Build) void {
     unit_tests.addIncludePath("./deps/mbedtls/include");
     unit_tests.addModule("pkcs1", pkcs1);
 
-    _ = b.addRunArtifact(unit_tests);
+    const run_unit_tests = b.addRunArtifact(unit_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
-    _ = b.step("test", "Run unit tests");
-
-
-
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_unit_tests.step);
 
     // inbox component
     {
@@ -165,6 +160,4 @@ pub fn build(b: *std.Build) void {
         acexe.export_symbol_names = &export_names;
         b.installArtifact(acexe);
     }
-
 }
-
