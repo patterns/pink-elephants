@@ -23,17 +23,19 @@ pub fn attachFetch(fetch: ProduceVerifierFn) void {
 }
 
 // calculate SHA256 sum of signature base input str
-pub fn sha256Base(rcv: anytype) ![sha256_len]u8 {
-    var buffer: [sha256_len]u8 = undefined;
-    const base = try impl.fmtBase2(rcv);
-    std.crypto.hash.sha2.Sha256.hash(base, &buffer, .{});
-    return buffer;
+pub fn sha256Base(rcv: anytype, sum: *[32]u8) !void {
+    // SHA256 creates digests of 32 bytes.
+    // (buffer at 512, may be up to 8192?)
+    var buffer: [512]u8 = undefined;
+    var chan = std.io.fixedBufferStream(&buffer);
+    try impl.fmtBase(rcv, chan.writer());
+    const base = chan.getWritten();
+
+    //std.debug.print("base: {s}\x0A", .{base});
+    std.crypto.hash.sha2.Sha256.hash(base, sum, .{});
 }
 
 // reconstruct the signature base input str
-//pub fn fmtBase(req: anytype, headers: phi.HeaderList) ![]const u8 {
-//    return impl.fmtBase(@intToEnum(Verb, req.method), req.uri, headers);
-//}
 pub fn fmtBase(rcv: anytype) ![]const u8 {
     return impl.fmtBase2(rcv);
 }
@@ -104,13 +106,71 @@ var produce: ProduceVerifierFn = undefined;
 //    impl.auth = phi.AuthParams.init(ally, raw);
 //    try impl.auth.preverify();
 //}
+pub fn deinit() void {
+    impl.deinit();
+}
 
 const ByRSASignerImpl = struct {
     const Self = @This();
-
-    //    auth: phi.AuthParams,
     parsed: ParsedVerifier,
     prev: std.http.Headers,
+
+    fn deinit(self: *Self) void {
+        //if (self.prev == undefined) return;
+        self.prev.clearAndFree();
+        self.prev.deinit();
+    }
+    // reconstruct input-string
+    fn fmtBase(
+        self: Self,
+        rcv: anytype,
+        out: std.io.FixedBufferStream([]u8).Writer,
+    ) !void {
+        const verb: spin.http.Verb = rcv.method;
+        const uri: []const u8 = rcv.uri;
+        const h2: std.http.Headers = rcv.headers;
+
+        // each signature subheader has its value encased in quotes
+        const shd = self.prev.getFirstValue("headers");
+        if (shd == null) return error.LeafHeaders;
+        const recipe = mem.trim(u8, shd.?, "\x22");
+        var it = mem.tokenize(u8, recipe, "\x20");
+
+        const first = it.next();
+        if (first == null) return error.SignatureDelim;
+
+        // TODO double-check this, seen docs that begin with other subheaders
+        if (!mem.startsWith(u8, first.?, "(request-target)")) {
+            log.err("Httpsig leader format, {s}", .{first.?});
+            return error.SignatureFormat;
+        }
+
+        // base leader
+        try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
+        // base elements
+        while (it.next()) |base_el| {
+            if (streq("host", base_el)) {
+                if (h2.getFirstValue("host")) |name| {
+                    try out.print("{s}host: {s}", .{ lf_codept, name });
+                }
+            } else if (streq("date", base_el)) {
+                //todo check timestamp
+                if (h2.getFirstValue("date")) |date| {
+                    try out.print("{s}date: {s}", .{ lf_codept, date });
+                }
+            } else if (streq("digest", base_el)) {
+                //todo check digest
+                if (h2.getFirstValue("digest")) |digest| {
+                    try out.print("{s}digest: {s}", .{ lf_codept, digest });
+                }
+            } else {
+                if (h2.getFirstValue(base_el)) |val| {
+                    const lower = base_el;
+                    try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
+                }
+            }
+        }
+    }
 
     // reconstruct input-string
     pub fn fmtBase2(self: Self, rcv: anytype) ![]const u8 {
@@ -121,8 +181,8 @@ const ByRSASignerImpl = struct {
         // each signature subheader has its value encased in quotes
         const shd = self.prev.getFirstValue("headers");
         if (shd == null) return error.LeafHeaders;
-        const recipe = mem.trim(u8, shd.?, "\"");
-        var it = mem.tokenize(u8, recipe, " ");
+        const recipe = mem.trim(u8, shd.?, "\x22");
+        var it = mem.tokenize(u8, recipe, "\x20");
 
         const first = it.next();
         if (first == null) return error.SignatureDelim;
@@ -188,8 +248,10 @@ const ByRSASignerImpl = struct {
         const c_exp: [:0]u8 = try ally.dupeZ(u8, pkco.exponent);
         defer ally.free(c_mod);
         defer ally.free(c_exp);
-        std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
-        std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
+        //std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
+        //std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
+        log.debug("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
+        log.debug("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
 
         // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
@@ -310,9 +372,6 @@ pub fn fromPEM(
     };
 }
 
-// SHA256 creates digests of 32 bytes.
-const sha256_len: usize = 32;
-
 // limit of RSA pub key
 fn maxPEM() usize {
     // assume 4096 bits is largest RSA
@@ -391,3 +450,5 @@ const lf_codept = "\u{000A}";
 const lf_literal = 0x0A;
 const qm_codept = "\u{0022}";
 const qm_literal = 0x22;
+const sp_codept = "\u{0020}";
+const sp_literal = 0x20;
