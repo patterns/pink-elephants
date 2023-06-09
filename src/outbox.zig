@@ -2,7 +2,7 @@ const std = @import("std");
 const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
-const vfr = @import("verifier/verifier.zig");
+const vrf = @import("verify/verifier.zig");
 const Allocator = std.mem.Allocator;
 comptime {
     spin.handle(outboxScript);
@@ -44,17 +44,20 @@ fn outboxScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
 // with outbox we expect the HTTP signature
 // (we'll capture in any case to troubleshoot our implementation)
 fn verifySignature(ally: Allocator, rcv: anytype) bool {
-    vfr.prev2(ally, rcv.headers) catch {
-        std.log.err("preverify fault\n", .{});
+    vrf.prev2(ally, rcv.headers) catch {
+        std.log.err("Preverify fault\n", .{});
         return false;
     };
-    vfr.attachFetch(produceVerifierByProxy);
-    const base = vfr.fmtBase(rcv) catch {
+    vrf.attachFetch(produceVerifierByProxy);
+
+    var buffer: [512]u8 = undefined;
+    var chan = std.io.fixedBufferStream(&buffer);
+    vrf.fmtBase(rcv, chan.writer()) catch {
         std.log.err("Sig base input string fault\n", .{});
         return false;
     };
 
-    var matching = vfr.bySigner(ally, base) catch {
+    var matching = vrf.bySigner(ally, chan.getWritten()) catch {
         std.log.err("Sig verify fault\n", .{});
         return false;
     };
@@ -64,7 +67,7 @@ fn verifySignature(ally: Allocator, rcv: anytype) bool {
 
 // custom fetch to retrieve the verifier
 // via the known allowed-server declared in configuration
-fn produceVerifierByProxy(ally: Allocator, key_provider: []const u8) !vfr.ParsedVerifier {
+fn produceVerifierByProxy(ally: Allocator, key_provider: []const u8) !vrf.ParsedVerifier {
     // conf setting for proxy
     const proxy_uri = spin.config.verifierProxyUri() orelse "http://localhost:8000";
     // conf setting for proxy bearer token
@@ -83,7 +86,7 @@ fn produceVerifierByProxy(ally: Allocator, key_provider: []const u8) !vfr.Parsed
     const pem = try pemFragment(ally, js);
     defer ally.free(pem);
     var fbs = std.io.fixedBufferStream(pem);
-    return vfr.fromPEM(ally, fbs.reader());
+    return vrf.fromPEM(ally, fbs.reader());
 }
 
 fn pemFragment(ally: Allocator, js: []const u8) ![]const u8 {

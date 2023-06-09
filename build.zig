@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) void {
 
     // internal module for zig code to consume
     const pkcs1 = b.createModule(
-        .{ .source_file = .{ .path = "src/verifier/pkcs1.zig" } },
+        .{ .source_file = .{ .path = "src/verify/pkcs1.zig" } },
     );
 
     // Creates a step for unit testing. This only builds the test executable

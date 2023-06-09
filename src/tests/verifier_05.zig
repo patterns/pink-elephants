@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
-const vfr = @import("../verifier/verifier.zig");
+const vrf = @import("../verify/verifier.zig");
 const common = @import("common.zig");
 const Allocator = std.mem.Allocator;
 const cert = std.crypto.Certificate;
@@ -13,12 +13,12 @@ test "Produce verifier rsa" {
     var raw = common.minRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
     // preverify
-    try vfr.prev2(ally, raw);
-    defer vfr.deinit();
+    try vrf.prev2(ally, raw);
+    defer vrf.deinit();
 
     // fake public key via our custom harvester
-    vfr.attachFetch(produceFromPublicKeyPEM);
-    var pv = try vfr.produceVerifier(ally);
+    vrf.attachFetch(produceFromPublicKeyPEM);
+    var pv = try vrf.produceVerifier(ally);
     defer pv.deinit(ally);
     var scratch_buf: [512]u8 = undefined;
 
@@ -34,11 +34,11 @@ test "Produce verifier rsa" {
     try expectStr("C2144346C37DF21A2872F76A438D94219740B7EAB3C98FE0AF7D20BCFAADBC871035EB5405354775DF0B824D472AD10776AAC05EFF6845C9CD83089260D21D4BEFCFBA67850C47B10E7297DD504F477F79BF86CF85511E39B8125E0CAD474851C3F1B1CA0FA92FF053C67C94E8B5CFB6C63270A188BED61AA9D5F21E91AC6CC9", txt_modulus);
 }
 
-fn produceFromPublicKeyPEM(ally: std.mem.Allocator, proxy: []const u8) !vfr.ParsedVerifier {
+fn produceFromPublicKeyPEM(ally: std.mem.Allocator, proxy: []const u8) !vrf.ParsedVerifier {
     // skip network trip that would normally connect to proxy/provider
     _ = proxy;
     var fbs = std.io.fixedBufferStream(public_key_PEM);
-    return vfr.fromPEM(ally, fbs.reader());
+    return vrf.fromPEM(ally, fbs.reader());
 }
 
 var public_key_PEM =

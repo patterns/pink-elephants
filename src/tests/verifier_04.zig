@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
-const vfr = @import("../verifier/verifier.zig");
+const vrf = @import("../verify/verifier.zig");
 const common = @import("common.zig");
 const Allocator = std.mem.Allocator;
 
@@ -18,11 +18,11 @@ test "Reg signature base in the form of SHA256 sum" {
         .headers = raw,
         .body = "{\x22hello\x22: \x22world\x22}",
     };
-    try vfr.prev2(ally, raw);
-    defer vfr.deinit();
+    try vrf.prev2(ally, raw);
+    defer vrf.deinit();
     var hash: [32]u8 = undefined;
     // perform calculation
-    try vfr.sha256Base(sim_rcv_request, &hash);
+    try vrf.sha256Base(sim_rcv_request, &hash);
 
     var regsum: [32]u8 = undefined;
     _ = try std.fmt.hexToBytes(&regsum, "53CD4050FF72E3A6383091186168F3DF4CA2E6B3A77CBED60A02BA00C9CD8078");
