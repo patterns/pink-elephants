@@ -36,8 +36,8 @@ pub fn sha256Base(rcv: anytype, sum: *[32]u8) !void {
 }
 
 // reconstruct the signature base input str
-pub fn fmtBase(rcv: anytype) ![]const u8 {
-    return impl.fmtBase2(rcv);
+pub fn fmtBase(rcv: anytype, out: std.io.FixedBufferStream([]u8).Writer) !void {
+    return impl.fmtBase(rcv, out);
 }
 
 // verify signature
@@ -62,6 +62,22 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     return error.FetchNotDefined;
 }
 
+// Reminder, _Verifier_ rename here is to emphasize that our concern is
+// only the public key; at the same time, we are not making a general purpose
+// public key, this verifier is limited to ActivityPub and the HTTP signature
+// in Mastodon server crosstalk.
+const Verifier = @This();
+const Impl = struct { produce: ProduceVerifierFn };
+var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined };
+var produce: ProduceVerifierFn = undefined;
+
+//pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
+//    impl.auth = phi.AuthParams.init(ally, raw);
+//    try impl.auth.preverify();
+//}
+pub fn deinit() void {
+    impl.deinit();
+}
 // sprout related preverify which uses std.http.Headers
 // (to initialize auth params list)
 pub fn prev2(ally: Allocator, h2: std.http.Headers) !void {
@@ -91,23 +107,6 @@ fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld:
     const lookup = root[f_start..(f_start + f_len)];
     const val = root[v_start..(v_start + v_len)];
     return .{ .fld = lookup, .val = val };
-}
-
-// Reminder, _Verifier_ rename here is to emphasize that our concern is
-// only the public key; at the same time, we are not making a general purpose
-// public key, this verifier is limited to ActivityPub and the HTTP signature
-// in Mastodon server crosstalk.
-const Verifier = @This();
-const Impl = struct { produce: ProduceVerifierFn };
-var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined };
-var produce: ProduceVerifierFn = undefined;
-
-//pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
-//    impl.auth = phi.AuthParams.init(ally, raw);
-//    try impl.auth.preverify();
-//}
-pub fn deinit() void {
-    impl.deinit();
 }
 
 const ByRSASignerImpl = struct {
@@ -173,7 +172,7 @@ const ByRSASignerImpl = struct {
     }
 
     // reconstruct input-string
-    pub fn fmtBase2(self: Self, rcv: anytype) ![]const u8 {
+    pub fn fmtBase99(self: Self, rcv: anytype) ![]const u8 {
         const verb: spin.http.Verb = rcv.method;
         const uri: []const u8 = rcv.uri;
         const h2: std.http.Headers = rcv.headers;
@@ -250,8 +249,6 @@ const ByRSASignerImpl = struct {
         defer ally.free(c_exp);
         //std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
         //std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
-        log.debug("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
-        log.debug("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
 
         // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
@@ -397,54 +394,6 @@ pub const VerifierError = error{
     SignatureDigest,
     SignatureDecode,
 };
-
-// http method / verbs (TODO don't expose publicly if possible)
-//pub const Verb = enum(u8) {
-//    get = 0,
-//    post = 1,
-//    put = 2,
-//    delete = 3,
-//    patch = 4,
-//    head = 5,
-//    options = 6,
-
-// description (name) format of the enum
-//    pub fn toDescr(self: Verb) [:0]const u8 {
-//return DescrTable[@enumToInt(self)];
-// insted of table, switch
-//        switch (self) {
-//            .get => return "get",
-//            .post => return "post",
-//            .put => return "put",
-//            .delete => return "delete",
-//            .patch => return "patch",
-//            .head => return "head",
-//            .options => return "options",
-//        }
-//    }
-
-// convert to enum
-//    pub fn fromDescr(text: []const u8) Verb {
-//        for (DescrTable, 0..) |row, rownum| {
-//            if (streq(row, text)) {
-//                return @intToEnum(Verb, rownum);
-//            }
-//        }
-//        unreachable;
-//    }
-// TODO remove the table in favor of switch
-// lookup table with the description
-//    pub const DescrTable = [@typeInfo(Verb).Enum.fields.len][:0]const u8{
-//        "get",
-//        "post",
-//        "put",
-//        "delete",
-//        "patch",
-//        "head",
-//        "options",
-//    };
-
-//};
 
 const lf_codept = "\u{000A}";
 const lf_literal = 0x0A;

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
-const vfr = @import("../verifier/verifier.zig");
+const vrf = @import("../verify/verifier.zig");
 const common = @import("common.zig");
 const Allocator = std.mem.Allocator;
 const cert = std.crypto.Certificate;
@@ -13,12 +13,12 @@ test "Produce verifier adafruit" {
     var raw = common.minRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
     // preverify
-    try vfr.prev2(ally, raw);
-    defer vfr.deinit();
+    try vrf.prev2(ally, raw);
+    defer vrf.deinit();
 
     // fake public key via our custom harvester
-    vfr.attachFetch(produceFromAdafruitPEM);
-    var pv = try vfr.produceVerifier(ally);
+    vrf.attachFetch(produceFromAdafruitPEM);
+    var pv = try vrf.produceVerifier(ally);
     defer pv.deinit(ally);
     var scratch_buf: [512]u8 = undefined;
     // read key bitstring
@@ -31,11 +31,11 @@ test "Produce verifier adafruit" {
     try expectStr("B2906B60D93EBD25A2F2D691B7CAD614BCA0FB2E5B0B8640FA621719DDD12C49B47E35F38BDD0DE221F133ACF0B5D10ED5D2DBBA3F0A0DBA42E6B0E910C7F13019AF989569BDB55B65C94E50AA4D2C829D90F98F14A0C23693548064A4FAAF0821291A017EA8DDB02EF666A0CBA8B1B4DA3C50161AF8892A3890DB7A18750B981FFF8444CAEB92C985C8AA395637A0281C15609434E4C46C884369231513E1D54E56AE59AED8EFEF837187F731E7FBE8B3E6F2A7326F489DCAFC4EAAA4942BA494D5F16FF708096A255933882DA9D85A5313DD050EBD6EF26891967BD3E1EF3E7D4AA2864D07E719F318D45FB92CB3B42A18EB0437390C2332F85E123F65D733", txt_modulus);
 }
 
-fn produceFromAdafruitPEM(ally: std.mem.Allocator, proxy: []const u8) !vfr.ParsedVerifier {
+fn produceFromAdafruitPEM(ally: std.mem.Allocator, proxy: []const u8) !vrf.ParsedVerifier {
     // skip network trip that would normally connect to proxy/provider
     _ = proxy;
     var fbs = std.io.fixedBufferStream(public_adafruit_PEM);
-    return vfr.fromPEM(ally, fbs.reader());
+    return vrf.fromPEM(ally, fbs.reader());
 }
 
 const public_adafruit_PEM =

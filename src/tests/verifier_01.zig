@@ -1,11 +1,8 @@
 const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
-const vfr = @import("../verifier/verifier.zig");
+const vrf = @import("../verify/verifier.zig");
 const common = @import("common.zig");
-const Allocator = std.mem.Allocator;
-const expect = std.testing.expect;
-const expectErr = std.testing.expectError;
 const expectStr = std.testing.expectEqualStrings;
 
 // exercise signature base reconstruction
@@ -20,15 +17,17 @@ test "Signature base input string mini" {
         .body = "{\x22hello\x22: \x22world\x22}",
         .headers = raw,
     };
+    var buffer: [512]u8 = undefined;
+    var chan = std.io.fixedBufferStream(&buffer);
     // preverify
-    try vfr.prev2(ally, raw);
-    defer vfr.deinit();
-    // format sig base input
-    const base = try vfr.fmtBase(sim_rcv_request);
+    try vrf.prev2(ally, raw);
+    defer vrf.deinit();
+    // recreate sig base input
+    try vrf.fmtBase(sim_rcv_request, chan.writer());
 
     // With the headers specified, our expected signature base input string is:
     try expectStr(
         "(request-target): post /foo?param=value&pet=dog\x0Ahost: example.com\x0Adate: Sun, 05 Jan 2014 21:31:40 GMT",
-        base,
+        chan.getWritten(),
     );
 }

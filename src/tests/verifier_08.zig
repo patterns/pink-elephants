@@ -1,8 +1,7 @@
 const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
-const vfr = @import("../verifier/verifier.zig");
-//const common = @import("common.zig");
+const vrf = @import("../verify/verifier.zig");
 const Allocator = std.mem.Allocator;
 const cert = std.crypto.Certificate;
 const expectStr = std.testing.expectEqualStrings;
@@ -18,13 +17,16 @@ test "verify peop" {
         .headers = raw,
         .body = undefined,
     };
+    var buffer: [512]u8 = undefined;
+    var chan = std.io.fixedBufferStream(&buffer);
+
     // preverify
-    try vfr.prev2(ally, raw);
-    defer vfr.deinit();
+    try vrf.prev2(ally, raw);
+    defer vrf.deinit();
 
     // peop public key
-    vfr.attachFetch(produceFromPeopPEM);
-    var pv = try vfr.produceVerifier(ally);
+    vrf.attachFetch(produceFromPeopPEM);
+    var pv = try vrf.produceVerifier(ally);
     defer pv.deinit(ally);
     var scratch_buf: [512]u8 = undefined;
     // read key bitstring
@@ -35,8 +37,8 @@ test "verify peop" {
     try expectStr(modulus_peop, txt_modulus);
 
     // base input check
-    const base = try vfr.fmtBase(sim_rcv_request);
-    try expectStr(base, base_peop_TXT);
+    try vrf.fmtBase(sim_rcv_request, chan.writer());
+    try expectStr(chan.getWritten(), base_peop_TXT);
 
     //var hashed_msg: [32]u8 = undefined;
     // sha256 sum check
@@ -48,7 +50,7 @@ test "verify peop" {
     //    .{fmt.fmtSliceHexUpper(&hashed_msg)});
     //try expectStr(sum256_peop, txt_hashed);
 
-    ////const result = try vfr.bySigner(ally, base);
+    ////const result = try vrf.bySigner(ally, base);
     ////try expect(result == true);
 }
 
@@ -57,22 +59,20 @@ fn peopRawHeaders(ally: Allocator) !std.http.Headers {
     var h2 = std.http.Headers.init(ally);
     try h2.append("host", "mastodon.social");
     try h2.append("date", "Sun, 30 Apr 2023 04:55:37 GMT");
-
     try h2.append("digest", "SHA-256=a9IYUmhfuVYZQnUuiqFWHhLnxk67FUjWF4W7vewjGKA=");
-
     try h2.append(
         "signature",
-        "keyId=\"Testfoll\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date digest\",signature=\"ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\"",
+        "keyId=\x22Testfoll\x22,algorithm=\x22rsa-sha256\x22,headers=\x22(request-target) host date digest\x22,signature=\x22ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\x22",
     );
 
     return h2;
 }
 
-fn produceFromPeopPEM(ally: std.mem.Allocator, proxy: []const u8) !vfr.ParsedVerifier {
+fn produceFromPeopPEM(ally: Allocator, proxy: []const u8) !vrf.ParsedVerifier {
     // skip network trip that would normally connect to proxy/provider
     _ = proxy;
     var fbs = std.io.fixedBufferStream(public_peop_PEM);
-    return vfr.fromPEM(ally, fbs.reader());
+    return vrf.fromPEM(ally, fbs.reader());
 }
 
 const public_peop_PEM =
