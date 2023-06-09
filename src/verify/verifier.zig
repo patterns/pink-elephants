@@ -68,7 +68,7 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
 // in Mastodon server crosstalk.
 const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
-var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined };
+var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined, .ally = undefined };
 var produce: ProduceVerifierFn = undefined;
 
 //pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
@@ -96,6 +96,7 @@ pub fn prev2(ally: Allocator, h2: std.http.Headers) !void {
         try p.append(end_tup.fld, end_tup.val);
     }
     impl.prev = p;
+    impl.ally = ally;
 }
 fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld: []const u8, val: []const u8 } {
     const f_start = start_index;
@@ -113,11 +114,13 @@ const ByRSASignerImpl = struct {
     const Self = @This();
     parsed: ParsedVerifier,
     prev: std.http.Headers,
+    ally: Allocator,
 
     fn deinit(self: *Self) void {
         //if (self.prev == undefined) return;
         self.prev.clearAndFree();
         self.prev.deinit();
+        self.parsed.deinit(self.ally);
     }
     // reconstruct input-string
     fn fmtBase(
@@ -171,70 +174,16 @@ const ByRSASignerImpl = struct {
         }
     }
 
-    // reconstruct input-string
-    pub fn fmtBase99(self: Self, rcv: anytype) ![]const u8 {
-        const verb: spin.http.Verb = rcv.method;
-        const uri: []const u8 = rcv.uri;
-        const h2: std.http.Headers = rcv.headers;
-
-        // each signature subheader has its value encased in quotes
-        const shd = self.prev.getFirstValue("headers");
-        if (shd == null) return error.LeafHeaders;
-        const recipe = mem.trim(u8, shd.?, "\x22");
-        var it = mem.tokenize(u8, recipe, "\x20");
-
-        const first = it.next();
-        if (first == null) return error.SignatureDelim;
-
-        // TODO double-check this, seen docs that begin with other subheaders
-        if (!mem.startsWith(u8, first.?, "(request-target)")) {
-            log.err("Httpsig leader format, {s}", .{first.?});
-            return error.SignatureFormat;
-        }
-
-        // prep bucket for base elements (multiline)
-        var acc: [512]u8 = undefined;
-        var chan = std.io.StreamSource{ .buffer = std.io.fixedBufferStream(&acc) };
-        var out = chan.writer();
-
-        // base leader
-        try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
-        // base elements
-        while (it.next()) |base_el| {
-            if (streq("host", base_el)) {
-                if (h2.getFirstValue("host")) |name| {
-                    try out.print("{s}host: {s}", .{ lf_codept, name });
-                }
-            } else if (streq("date", base_el)) {
-                //todo check timestamp
-                if (h2.getFirstValue("date")) |date| {
-                    try out.print("{s}date: {s}", .{ lf_codept, date });
-                }
-            } else if (streq("digest", base_el)) {
-                //todo check digest
-                if (h2.getFirstValue("digest")) |digest| {
-                    try out.print("{s}digest: {s}", .{ lf_codept, digest });
-                }
-            } else {
-                if (h2.getFirstValue(base_el)) |val| {
-                    const lower = base_el;
-                    try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
-                }
-            }
-        }
-
-        return chan.buffer.getWritten();
-    }
-
-    // verify signature
+    // with the public key produced in preverify step, verify signature
     pub fn bySigner(self: Self, ally: Allocator, base: []const u8) !bool {
         // a RSA public key of modulus 2048 bits
         const rsa_modulus_2048 = 256;
 
-        var decoded: [rsa_modulus_2048]u8 = undefined;
-        _ = try self.signature(&decoded);
+        var buffer: [rsa_modulus_2048]u8 = undefined;
+        var decoded = try self.signature(&buffer);
+        //std.debug.print("\n?,sig: {s}", .{std.fmt.fmtSliceHexLower(decoded)});
         // coerce to many pointer
-        const c_decoded: [*]u8 = &decoded;
+        const c_decoded: [*]u8 = decoded.ptr;
 
         var hashed_msg: [32]u8 = undefined;
         const sha = cert.Algorithm.sha256WithRSAEncryption.Hash();
@@ -242,26 +191,33 @@ const ByRSASignerImpl = struct {
         // coerce to many pointer
         const c_hashed: [*]u8 = &hashed_msg;
 
-        const pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
-        const c_mod: [:0]u8 = try ally.dupeZ(u8, pkco.modulus);
-        const c_exp: [:0]u8 = try ally.dupeZ(u8, pkco.exponent);
-        defer ally.free(c_mod);
-        defer ally.free(c_exp);
-        //std.debug.print("\n?,mo: {s}", .{std.fmt.fmtSliceHexLower(c_mod)});
-        //std.debug.print("\n?,ex: {s}", .{std.fmt.fmtSliceHexLower(c_exp)});
+        var pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
+        var modu: [rsa_modulus_2048]u8 = undefined;
+        var expo: [3]u8 = undefined;
+        std.mem.copy(u8, &modu, pkco.modulus);
+        std.mem.copy(u8, &expo, pkco.exponent);
+        var mo = std.fmt.bytesToHex(modu, .upper);
+        var ex = std.fmt.bytesToHex(expo, .upper);
+        var c_hex_mo: [:0]u8 = try ally.dupeZ(u8, &mo);
+        var c_hex_ex: [:0]u8 = try ally.dupeZ(u8, &ex);
+        defer ally.free(c_hex_mo);
+        defer ally.free(c_hex_ex);
+        //std.debug.print("\x0A?,mo: {s}", .{c_hex_mo});
+        //std.debug.print("\x0A?,ex: {s}", .{c_hex_ex});
 
         // invoke verify from Mbed C/library
-        try pkcs1.verify(c_hashed, c_decoded, c_mod, c_exp);
+        try pkcs1.verify(c_hashed, c_decoded, c_hex_mo, c_hex_ex);
 
         return true;
     }
 
     fn signature(self: Self, buffer: []u8) ![]u8 {
-        // signature comes from the auth params list
+        // signature is the leaf node from parsing in preverify step
         // which is base64 (format for header fields)
-        //const sig = self.auth.get(.sub_signature).value;
+
         if (self.prev.getFirstValue("signature")) |sig| {
             const clean = mem.trim(u8, sig, "\"");
+
             const max = try b64.calcSizeForSlice(clean);
             var decoded = buffer[0..max];
             try b64.decode(decoded, clean);

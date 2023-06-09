@@ -5,7 +5,7 @@ const vrf = @import("../verify/verifier.zig");
 const Allocator = std.mem.Allocator;
 const cert = std.crypto.Certificate;
 const expectStr = std.testing.expectEqualStrings;
-
+// document multiple steps to call the pkcs1 verify
 test "verify peop" {
     const ally = std.testing.allocator;
     var raw = peopRawHeaders(ally) catch @panic("OutofMem");
@@ -20,38 +20,21 @@ test "verify peop" {
     var buffer: [512]u8 = undefined;
     var chan = std.io.fixedBufferStream(&buffer);
 
-    // preverify
+    // preverify (extracts keyId/ key provider)
     try vrf.prev2(ally, raw);
     defer vrf.deinit();
 
     // peop public key
     vrf.attachFetch(produceFromPeopPEM);
-    var pv = try vrf.produceVerifier(ally);
-    defer pv.deinit(ally);
-    var scratch_buf: [512]u8 = undefined;
-    // read key bitstring
-    const pk_components = try cert.rsa.PublicKey.parseDer(pv.bits());
-    var txt_exponent: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexLower(pk_components.exponent)});
-    try expectStr("010001", txt_exponent);
-    var txt_modulus: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexUpper(pk_components.modulus)});
-    try expectStr(modulus_peop, txt_modulus);
 
     // base input check
     try vrf.fmtBase(sim_rcv_request, chan.writer());
-    try expectStr(chan.getWritten(), base_peop_TXT);
+    const base_input = chan.getWritten();
+    try expectStr(base_input, base_peop_TXT);
 
-    //var hashed_msg: [32]u8 = undefined;
-    // sha256 sum check
-    //try proof.hashed(cert.Algorithm.sha256WithRSAEncryption.Hash(),
-    //    base,
-    //    cert.Parsed.PubKeyAlgo.rsaEncryption,
-    //    &hashed_msg);
-    //const txt_hashed: []u8 = try fmt.bufPrint(&scratch_buf, "{any}",
-    //    .{fmt.fmtSliceHexUpper(&hashed_msg)});
-    //try expectStr(sum256_peop, txt_hashed);
-
-    ////const result = try vrf.bySigner(ally, base);
-    ////try expect(result == true);
+    // the invoke for pkcs1 verify (plus input prep)
+    const is_matching = try vrf.bySigner(ally, base_input);
+    try std.testing.expect(is_matching);
 }
 
 // (follow) request fields
