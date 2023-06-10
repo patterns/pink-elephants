@@ -21,7 +21,7 @@ test "Signature base input string reg" {
     var buffer: [512]u8 = undefined;
     var chan = std.io.fixedBufferStream(&buffer);
 
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
     // format sig base input
     try vrf.fmtBase(sim_rcv_request, chan.writer());

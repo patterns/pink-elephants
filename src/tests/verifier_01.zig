@@ -20,7 +20,7 @@ test "Signature base input string mini" {
     var buffer: [512]u8 = undefined;
     var chan = std.io.fixedBufferStream(&buffer);
     // preverify
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
     // recreate sig base input
     try vrf.fmtBase(sim_rcv_request, chan.writer());

@@ -17,7 +17,7 @@ test "Mini signature base in the form of SHA256 sum" {
         .headers = raw,
         .body = "{\x22hello\x22: \x22world\x22}",
     };
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
     var hash: [32]u8 = undefined;
     // compute hash

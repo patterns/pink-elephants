@@ -21,7 +21,7 @@ test "verify peop" {
     var chan = std.io.fixedBufferStream(&buffer);
 
     // preverify (extracts keyId/ key provider)
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
 
     // peop public key

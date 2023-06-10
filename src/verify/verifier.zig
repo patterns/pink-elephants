@@ -53,7 +53,7 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     if (produce != undefined) {
         //const key_provider = impl.auth.get(.sub_key_id).value;
         if (impl.prev.getFirstValue("keyId")) |key_provider| {
-            const clean = std.mem.trim(u8, key_provider, "\"");
+            const clean = std.mem.trim(u8, key_provider, qm_codept);
             return produce(ally, clean);
         } else {
             return error.LeafKeyprovider;
@@ -71,22 +71,18 @@ const Impl = struct { produce: ProduceVerifierFn };
 var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined, .ally = undefined };
 var produce: ProduceVerifierFn = undefined;
 
-//pub fn init(ally: Allocator, raw: phi.RawHeaders) !void {
-//    impl.auth = phi.AuthParams.init(ally, raw);
-//    try impl.auth.preverify();
-//}
 pub fn deinit() void {
     impl.deinit();
 }
-// sprout related preverify which uses std.http.Headers
-// (to initialize auth params list)
-pub fn prev2(ally: Allocator, h2: std.http.Headers) !void {
+// preverify which uses std.http.Headers
+// (to initialize auth params leaf nodes)
+pub fn init(ally: Allocator, h2: std.http.Headers) !void {
     if (!h2.contains("signature")) return error.PreverifySignature;
     var p = std.http.Headers.init(ally);
     if (h2.getFirstValue("signature")) |root| {
         // from draft12Fields
         var start_index: usize = 0;
-        while (std.mem.indexOfPos(u8, root, start_index, ",")) |mark| {
+        while (std.mem.indexOfPos(u8, root, start_index, cm_codept)) |mark| {
             const tup = try leafOffsets(root, start_index, mark);
             try p.append(tup.fld, tup.val);
             start_index = mark + 1;
@@ -100,7 +96,7 @@ pub fn prev2(ally: Allocator, h2: std.http.Headers) !void {
 }
 fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld: []const u8, val: []const u8 } {
     const f_start = start_index;
-    const pos = std.mem.indexOfPos(u8, root, start_index, "=");
+    const pos = std.mem.indexOfPos(u8, root, start_index, es_codept);
     if (pos == null) return error.SignatureLeafFormat;
     const f_len = pos.? - start_index;
     const v_start = pos.? + 1;
@@ -135,8 +131,8 @@ const ByRSASignerImpl = struct {
         // each signature subheader has its value encased in quotes
         const shd = self.prev.getFirstValue("headers");
         if (shd == null) return error.LeafHeaders;
-        const recipe = mem.trim(u8, shd.?, "\x22");
-        var it = mem.tokenize(u8, recipe, "\x20");
+        const recipe = mem.trim(u8, shd.?, qm_codept);
+        var it = mem.tokenize(u8, recipe, sp_codept);
 
         const first = it.next();
         if (first == null) return error.SignatureDelim;
@@ -216,7 +212,7 @@ const ByRSASignerImpl = struct {
         // which is base64 (format for header fields)
 
         if (self.prev.getFirstValue("signature")) |sig| {
-            const clean = mem.trim(u8, sig, "\"");
+            const clean = mem.trim(u8, sig, qm_codept);
 
             const max = try b64.calcSizeForSlice(clean);
             var decoded = buffer[0..max];
@@ -357,3 +353,7 @@ const qm_codept = "\u{0022}";
 const qm_literal = 0x22;
 const sp_codept = "\u{0020}";
 const sp_literal = 0x20;
+const cm_codept = "\u{002C}";
+const cm_literal = 0x2C;
+const es_codept = "\u{003D}";
+const es_literal = 0x3D;

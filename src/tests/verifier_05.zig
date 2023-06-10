@@ -13,7 +13,7 @@ test "Produce verifier rsa" {
     var raw = common.minRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
     // preverify
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
 
     // fake public key via our custom harvester

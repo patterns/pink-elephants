@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 
 // high-level HTTP signature verify routine for in/outbox
 pub fn verifySignature(ally: Allocator, rcv: anytype) bool {
-    vrf.prev2(ally, rcv.headers) catch {
+    vrf.init(ally, rcv.headers) catch {
         std.log.err("Preverify fault\x0A", .{});
         return false;
     };
