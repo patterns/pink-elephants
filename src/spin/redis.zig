@@ -80,9 +80,9 @@ fn saveEvent(redis: [:0]u8, key: [:0]u8, value: [:0]u8) void {
     const errcode = @intCast(usize, @intToPtr([*c]u8, @intCast(usize, result)).*);
     if (errcode == 0) {
         // zero means ok
-        log.debug("redis set done, {s}\n", .{key});
+        log.debug("redis.set, {s}\x0A", .{key});
     } else {
         // error (more detail hydration todo)
-        log.err("redis set failed", .{});
+        log.err("redis.set failed", .{});
     }
 }

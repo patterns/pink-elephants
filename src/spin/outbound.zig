@@ -10,7 +10,7 @@ pub fn get(uri: []const u8, h: []was.Xtup) !void {
         .js = "",
         //.params = params,
     });
-    //std.debug.print("Outbound GET, {any}", .{result});
+
     std.log.debug("Outbound GET, {any}", .{result});
 }
 
@@ -85,8 +85,6 @@ pub fn send(req: anytype) ![]const u8 {
     //const par_ptr = @intCast(i32, @ptrToInt(params.ptr));
     //const par_len = @bitCast(i32, @truncate(c_uint, params.len));
 
-    //std.debug.print("\n?,payload: {s}", .{req.js});
-    std.log.debug("\n?,payload: {s}", .{req.js});
     const js: [:0]const u8 = req.js;
     var js_enable: i32 = 0;
     var js_ptr: i32 = 0;
@@ -117,8 +115,7 @@ pub fn send(req: anytype) ![]const u8 {
     const errcode = @as(c_uint, @intToPtr([*c]u8, ptr).*);
     if (errcode == 0) {
         const status = @as(c_uint, @intToPtr([*c]u16, ptr + @as(c_int, 4)).*);
-        //std.debug.print("\n<,http.status: {d}", .{status});
-        std.log.debug("\n<,http.status: {d}", .{status});
+        std.log.debug("outbound.post, {d}", .{status});
 
         const has_payload = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 20)).*);
         if (has_payload == 0) return "";

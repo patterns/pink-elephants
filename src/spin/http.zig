@@ -67,12 +67,6 @@ const context = struct {
         }
         try map.put("body", cb);
 
-        //var cm: [:0]const u8 = undefined;
-        //switch (verb) {
-        //    0 => cm ="get",
-        //    1 => cm ="post",
-        //    else => unreachable,
-        //}
         const en = @intToEnum(Verb, verb);
         try map.put("method", en.toDescr());
 
