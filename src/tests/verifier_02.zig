@@ -2,6 +2,7 @@ const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
 const vrf = @import("../verify/verifier.zig");
+const meth = @import("../web/method.zig");
 const common = @import("common.zig");
 const expectStr = std.testing.expectEqualStrings;
 
@@ -13,7 +14,7 @@ test "Signature base input string reg" {
     defer raw.deinit();
 
     var sim_rcv_request = .{
-        .method = spin.http.Verb.post,
+        .method = meth.Verb.post,
         .uri = "/foo?param=value&pet=dog",
         .headers = raw,
         .body = "{\x22hello\x22: \x22world\x22}",

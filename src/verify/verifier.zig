@@ -2,7 +2,7 @@ const std = @import("std");
 const pkcs1 = @import("pkcs1");
 
 const spin = @import("../spin/lib.zig");
-
+const meth = @import("../web/method.zig");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const log = std.log;
@@ -124,7 +124,7 @@ const ByRSASignerImpl = struct {
         rcv: anytype,
         out: std.io.FixedBufferStream([]u8).Writer,
     ) !void {
-        const verb: spin.http.Verb = rcv.method;
+        const verb: meth.Verb = rcv.method;
         const uri: []const u8 = rcv.uri;
         const h2: std.http.Headers = rcv.headers;
 
