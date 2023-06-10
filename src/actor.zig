@@ -2,6 +2,7 @@ const std = @import("std");
 const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
+const meth = @import("web/method.zig");
 const Allocator = std.mem.Allocator;
 const log = std.log;
 comptime {
@@ -15,7 +16,7 @@ const actor_json = @embedFile("actor.json");
 const followers_json = @embedFile("followers.json");
 const following_json = @embedFile("following.json");
 fn actorScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
-    if (rcv.method != spin.http.Verb.get) return status.nomethod(w);
+    if (rcv.method != meth.Verb.get) return status.nomethod(w);
 
     w.headers.put("Content-Type", "application/json") catch {
         log.err(" response header", .{});

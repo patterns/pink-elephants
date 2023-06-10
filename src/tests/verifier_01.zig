@@ -2,6 +2,7 @@ const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
 const vrf = @import("../verify/verifier.zig");
+const meth = @import("../web/method.zig");
 const common = @import("common.zig");
 const expectStr = std.testing.expectEqualStrings;
 
@@ -12,7 +13,7 @@ test "Signature base input string mini" {
     defer raw.deinit();
 
     var sim_rcv_request = .{
-        .method = spin.http.Verb.post,
+        .method = meth.Verb.post,
         .uri = "/foo?param=value&pet=dog",
         .body = "{\x22hello\x22: \x22world\x22}",
         .headers = raw,
@@ -20,7 +21,7 @@ test "Signature base input string mini" {
     var buffer: [512]u8 = undefined;
     var chan = std.io.fixedBufferStream(&buffer);
     // preverify
-    try vrf.prev2(ally, raw);
+    try vrf.init(ally, raw);
     defer vrf.deinit();
     // recreate sig base input
     try vrf.fmtBase(sim_rcv_request, chan.writer());
