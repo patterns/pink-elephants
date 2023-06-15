@@ -1,48 +1,56 @@
 const std = @import("std");
+
 const Allocator = std.mem.Allocator;
 // static allocator
 var gpal = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpal.allocator();
 
-// TODO lots to refactor as we want to leverage for use in outbound
-//      (and consolidate out from lib)
+// prepare ownership switch to control by C/host
+pub fn shipFields(ally: Allocator, h: std.http.Headers) ![]Xfield {
+    var fld_list = std.ArrayList(Xfield).init(ally);
+    for (h.list.items) |entry| {
+        if (entry.value.len == 0) continue;
 
-// convert raw headers which are C array into array-list
-//pub fn headers_as_array(ally: Allocator, headers: phi.RawHeaders) std.ArrayList(Xtup) {
-//    var arr = std.ArrayList(Xtup).init(ally);
-//        var iter = headers.iterator();
-//        while (iter.next()) |entry| {
-//            var key = ally.dupe(u8, entry.key_ptr.*) catch {
-//                @panic("FAIL headers key dupe");
-//            };
-//            var val = ally.dupe(u8, entry.value_ptr.*) catch {
-//                @panic("FAIL headers val dupe");
-//            };
-//            var tup = Xtup{
-//                .f0 = Xstr{ .ptr = key.ptr, .len = key.len },
-//                .f1 = Xstr{ .ptr = val.ptr, .len = val.len },
-//            };
-//            arr.append(tup) catch {
-//                @panic("FAIL headers slice");
-//            };
-//        }
-//    return arr;
-//}
+        const fld = try ally.dupeZ(u8, entry.name);
+        const val = try ally.dupeZ(u8, entry.value);
+        try fld_list.append(.{
+            .f0 = .{ .ptr = fld.ptr, .len = fld.len },
+            .f1 = .{ .ptr = val.ptr, .len = val.len },
+        });
+    }
+    return fld_list.toOwnedSlice();
+}
 
-// C/interop (in the direction of from guest to host)
-////pub const Xcstr = [:0]u8;
+// C/interop (direction ship from guest to host)
+pub const Xcstr = extern struct { ptr: [*:0]u8, len: usize };
+pub const Xfield = extern struct { f0: Xcstr, f1: Xcstr };
 
-// C/interop (in the direction of from host to guest)
+// C/interop (direction of from host to guest)
 const Xptr = i32;
 // "anon" struct just for address to tuple C/interop
-pub const Xstr = extern struct { ptr: [*c]u8, len: usize };
-pub const Xtup = extern struct { f0: Xstr, f1: Xstr };
+const Xstr = extern struct { ptr: [*c]const u8, len: usize };
+const Xtup = extern struct { f0: Xstr, f1: Xstr };
 
-// HTTP status codes.
-////const HttpStatus = u16;
-// HTTP method verb.
-////const HttpMethod = u8;
+// C array to slice
+pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
+    const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
+    const max = @intCast(usize, rowcount);
 
+    var pairs = std.ArrayList(std.http.Field).init(ally);
+    var rownum: usize = 0;
+    while (rownum < max) : (rownum +%= 1) {
+        const tup = record[rownum];
+        const fld = tup.f0.ptr[0..tup.f0.len];
+        const val = tup.f1.ptr[0..tup.f1.len];
+        try pairs.append(.{
+            .name = try ally.dupeZ(u8, fld),
+            .value = try ally.dupeZ(u8, val),
+        });
+    }
+    return pairs.toOwnedSlice();
+}
+
+//todo clean up, not used as much.....
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
 pub const xdata = struct {
@@ -66,12 +74,9 @@ pub const xdata = struct {
     }
 
     // convert as slice w/ new memory (todo provide different return types explicitly i.e., dupeZ for the sentinel)
-    pub fn dupe(self: Self, ally: Allocator) []u8 {
+    pub fn dupe(self: Self, ally: Allocator) ![:0]u8 {
         const old = self.ptr[0..self.len];
-        var cp = ally.dupe(u8, old) catch {
-            @panic("FAIL xdata dupe ");
-        };
-        return cp;
+        return ally.dupeZ(u8, old);
     }
     // release memory that was allocated by host (using CanonicalAbiAlloc)
     pub fn deinit(self: *Self) void {
@@ -85,38 +90,4 @@ pub const xdata = struct {
 fn gpfree(ptr: ?[*]u8, len: usize) void {
     if (len == 0 or ptr == null) return;
     gpa.free(ptr.?[0..len]);
-}
-
-// list conversion from C arrays
-//pub fn xlist(ally: Allocator, addr: Xptr, rowcount: i32) !phi.RawHeaders {
-//    var record = @intToPtr([*c]Xtup, @intCast(usize, addr));
-//    const max = @intCast(usize, rowcount);
-//    var list: phi.RawHeaders = undefined;
-
-//    var rownum: usize = 0;
-//    while (rownum < max) : (rownum +%= 1) {
-//        var tup = record[rownum];
-
-//        list[rownum] = phi.RawField {
-//           .fld = try std.fmt.allocPrint(ally, "{s}", .{tup.f0.ptr[0..tup.f0.len]}),
-//           .val = try std.fmt.allocPrint(ally, "{s}", .{tup.f1.ptr[0..tup.f1.len]}),
-//        };
-//    }
-//    return list;
-//}
-
-// C array to slice
-pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
-    const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
-    const max = @intCast(usize, rowcount);
-
-    var pairs = std.ArrayList(std.http.Field).init(ally);
-    var rownum: usize = 0;
-    while (rownum < max) : (rownum +%= 1) {
-        const tup = record[rownum];
-        const fld = tup.f0.ptr[0..tup.f0.len];
-        const val = tup.f1.ptr[0..tup.f1.len];
-        try pairs.append(.{ .name = fld, .value = val });
-    }
-    return pairs.items;
 }

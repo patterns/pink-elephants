@@ -18,10 +18,10 @@ const following_json = @embedFile("following.json");
 fn actorScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
     if (rcv.method != meth.Verb.get) return status.nomethod(w);
 
-    w.headers.put("Content-Type", "application/json") catch {
+    w.headers.append("Content-Type", "application/json") catch {
         log.err(" response header", .{});
     };
-    w.headers.put("Access-Control-Allow-Origin", "*") catch {
+    w.headers.append("Access-Control-Allow-Origin", "*") catch {
         log.err(" response header", .{});
     };
 

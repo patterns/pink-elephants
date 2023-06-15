@@ -2,7 +2,7 @@ const std = @import("std");
 const was = @import("wasi.zig");
 const Allocator = std.mem.Allocator;
 
-pub fn get(uri: []const u8, h: []was.Xtup) !void {
+pub fn get(uri: []const u8, h: []was.Xfield) !void {
     const result = try send(.{
         .method = 0,
         .uri = uri,
@@ -21,25 +21,18 @@ pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anyt
     const js = try ally.dupeZ(u8, buf.items);
 
     //TODO refactor to accomodate generalized set of headers
-    //h.append("content-type", "application/json");
-    const literal_fld = "content-type";
-    const literal_val = "application/json";
-    const fld = was.Xstr{ .ptr = @constCast(literal_fld.ptr), .len = literal_fld.len };
-    const val = was.Xstr{ .ptr = @constCast(literal_val.ptr), .len = literal_val.len };
-    const ct_tup = was.Xtup{ .f0 = fld, .f1 = val };
-    var bearer_tup: was.Xtup = undefined;
+    var single_use = std.http.Headers.init(ally);
+    defer single_use.deinit();
+    try single_use.append("content-type", "application/json");
+
     const bearer_fld = "Authorization";
     if (h.getFirstEntry(bearer_fld)) |bearer| {
-        const b_fld: [:0]u8 = try ally.dupeZ(u8, bearer.name);
-        const b_val: [:0]u8 = try ally.dupeZ(u8, bearer.value);
-        bearer_tup.f0 = was.Xstr{ .ptr = b_fld.ptr, .len = b_fld.len };
-        bearer_tup.f1 = was.Xstr{ .ptr = b_val.ptr, .len = b_val.len };
+        try single_use.append(bearer.name, bearer.value);
     } else {
-        const bearer_val = "verifier-proxy-bearer-token";
-        bearer_tup.f0 = was.Xstr{ .ptr = @constCast(bearer_fld.ptr), .len = bearer_fld.len };
-        bearer_tup.f1 = was.Xstr{ .ptr = @constCast(bearer_val.ptr), .len = bearer_val.len };
+        try single_use.append(bearer_fld, "verifier-proxy-bearer-token");
     }
-    var arr = [_]was.Xtup{ ct_tup, bearer_tup };
+
+    var arr = try was.shipFields(ally, single_use);
 
     // uri (limit 255 characters) as C-string
     var curi: [255:0]u8 = undefined;
@@ -50,7 +43,7 @@ pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anyt
     return send(.{
         .method = 1,
         .uri = curi[0..uri.len :0],
-        .headers = &arr,
+        .headers = arr,
         .js = js,
         //.params = params,
     });
@@ -77,7 +70,7 @@ pub fn send(req: anytype) ![]const u8 {
     const uri_ptr = @intCast(i32, @ptrToInt(uri.ptr));
     const uri_len = @bitCast(i32, @truncate(c_uint, uri.len));
 
-    const headers: []was.Xtup = req.headers;
+    const headers: []was.Xfield = req.headers;
     const hdr_ptr = @intCast(i32, @ptrToInt(headers.ptr));
     const hdr_len = @bitCast(i32, @truncate(c_uint, headers.len));
 

@@ -5,24 +5,25 @@ const Allocator = std.mem.Allocator;
 
 // request.method
 pub fn method() meth.Verb {
-    const cm = context.get("method").?;
-    const en = meth.Verb.fromDescr(cm);
-    return en;
+    ////const cm = context.get("method").?;
+    ////const en = meth.Verb.fromDescr(cm);
+    return context.en;
 }
 // request.body
 pub fn body() [:0]const u8 {
-    return context.get("body").?;
+    ////return context.get("body").?;
+    return context.cb;
 }
 // request.uri
 pub fn uri() [:0]const u8 {
-    return context.get("uri").?;
+    ////return context.get("uri").?;
+    return context.cu;
 }
 // request.headers
 pub fn headers() std.http.Headers {
-    return context.h();
+    // read-only
+    return context.h;
 }
-
-//TODO auth params (leaf nodes of signature header)
 
 // the request received
 pub fn init(ally: Allocator, state: anytype) !void {
@@ -32,12 +33,13 @@ pub fn deinit() void {
     context.deinit();
 }
 
-// namespace nesting (to overlay request fields)
+// namespace nesting (to overlay received fields)
 const context = struct {
     // static variables
-    var raw: std.BoundedArray(std.http.Field, 128) = undefined;
-    var map: std.StringHashMap([:0]const u8) = undefined;
-    var hx2: std.http.Headers = undefined;
+    var h: std.http.Headers = undefined;
+    var cu: [:0]const u8 = undefined;
+    var cb: [:0]const u8 = undefined;
+    var en: meth.Verb = undefined;
 
     // accept mem addresses from C/interop
     fn init(ally: Allocator, state: anytype) !void {
@@ -52,50 +54,35 @@ const context = struct {
         const bod_ptr: WasiPtr = state.bod_ptr;
         const bod_len: i32 = state.bod_len;
 
-        map = std.StringHashMap([:0]const u8).init(ally);
-        const cu = try wasi.xdata.dupeZ(ally, uri_ptr, uri_len);
-        try map.put("uri", cu);
+        cu = try wasi.xdata.dupeZ(ally, uri_ptr, uri_len);
 
-        var cb: [:0]const u8 = "";
+        //var cb: [:0]const u8 = "";
         if (bod_enable == 1) {
             cb = try wasi.xdata.dupeZ(ally, bod_ptr, bod_len);
         }
-        try map.put("body", cb);
 
-        const en = @intToEnum(meth.Verb, verb);
-        try map.put("method", en.toDescr());
+        en = @intToEnum(meth.Verb, verb);
 
-        raw = try std.BoundedArray(std.http.Field, 128).fromSlice(try wasi.xslice(ally, hdr_ptr, hdr_len));
-        hx2 = std.http.Headers.init(ally);
+        var list = try wasi.xslice(ally, hdr_ptr, hdr_len);
+        defer ally.free(list);
+        try rcvHeaders(ally, list);
+
         //var _params = wasi.xlist(ally, paramAddr, paramLen)
     }
     fn deinit() void {
-        map.deinit();
-        hx2.deinit();
+        h.deinit();
     }
-    // headers overlay on raw
-    fn h() std.http.Headers {
-        if (!hx2.contains("content-type")) {
-            // if we didn't initialize, do that first
-            var i: u32 = 0;
-            while (i < raw.len) : (i += 1) {
-                const ent = raw.get(i);
-                hx2.append(ent.name, ent.value) catch {
-                    std.log.err("headers append fault", .{});
-                    break;
-                };
-            }
+    fn rcvHeaders(ally: Allocator, list: []std.http.Field) !void {
+        h = std.http.Headers.init(ally);
+        var i: u32 = 0;
+        while (i < list.len) : (i += 1) {
+            const ent = list[i];
+            try h.append(ent.name, ent.value);
+            ally.free(ent.name);
+            ally.free(ent.value);
         }
-        return hx2;
-    }
-    // general way to access 80% fields (minimal interface of request)
-    fn get(comptime name: []const u8) ?[:0]const u8 {
-        return map.get(name);
     }
 };
 
 // C/interop address
 const WasiPtr = i32;
-// "anon" struct just for address to tuple C/interop
-const WasiStr = extern struct { ptr: [*c]u8, len: usize };
-const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };
