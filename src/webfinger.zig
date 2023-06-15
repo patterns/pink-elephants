@@ -20,10 +20,10 @@ fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
     const unknown = unknownResource(ally, rcv.uri);
     if (unknown) return status.bad(w);
 
-    w.headers.put("Content-Type", "application/jrd+json") catch {
+    w.headers.append("Content-Type", "application/jrd+json") catch {
         log.err("ERROR response header", .{});
     };
-    w.headers.put("Access-Control-Allow-Origin", "*") catch {
+    w.headers.append("Access-Control-Allow-Origin", "*") catch {
         log.err("ERROR response header", .{});
     };
     w.body.appendSlice(webfinger_json) catch {

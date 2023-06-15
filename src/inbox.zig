@@ -34,7 +34,7 @@ fn inboxScript(ally: std.mem.Allocator, w: *spin.HttpResponse, rcv: anytype) voi
         return status.internal(w);
     };
 
-    w.headers.put("Content-Type", "application/json") catch {
+    w.headers.append("Content-Type", "application/json") catch {
         std.log.err("response header, OutOfMem\x0A", .{});
     };
 

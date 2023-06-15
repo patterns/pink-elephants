@@ -79,6 +79,7 @@ pub fn deinit() void {
 pub fn init(ally: Allocator, h2: std.http.Headers) !void {
     if (!h2.contains("signature")) return error.PreverifySignature;
     var p = std.http.Headers.init(ally);
+
     if (h2.getFirstValue("signature")) |root| {
         // from draft12Fields
         var start_index: usize = 0;
@@ -114,7 +115,7 @@ const ByRSASignerImpl = struct {
 
     fn deinit(self: *Self) void {
         //if (self.prev == undefined) return;
-        self.prev.clearAndFree();
+        //self.prev.clearAndFree();
         self.prev.deinit();
         self.parsed.deinit(self.ally);
     }

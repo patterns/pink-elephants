@@ -1,4 +1,5 @@
 const std = @import("std");
+const wasi = @import("wasi.zig");
 const Allocator = std.mem.Allocator;
 // static allocator
 var gpal = std.heap.GeneralPurposeAllocator(.{}){};
@@ -20,18 +21,18 @@ var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
 // entry point for C/host to guest process env
 fn guestHttpInit(
     arg_method: i32,
-    arg_uri_ptr: WasiPtr,
+    arg_uri_ptr: i32,
     arg_uri_len: i32,
-    arg_hdr_ptr: WasiPtr,
+    arg_hdr_ptr: i32,
     arg_hdr_len: i32,
-    arg_par_ptr: WasiPtr,
+    arg_par_ptr: i32,
     arg_par_len: i32,
     arg_body: i32,
-    arg_bod_ptr: WasiPtr,
+    arg_bod_ptr: i32,
     arg_bod_len: i32,
-) callconv(.C) WasiPtr {
+) callconv(.C) i32 {
     var arena = std.heap.ArenaAllocator.init(gpa);
-    defer arena.deinit();
+    ////defer arena.deinit();
     const ally = arena.allocator();
     // life cycle begins
     preprocess(ally, .{
@@ -45,69 +46,40 @@ fn guestHttpInit(
         .bod_enable = arg_body,
         .bod_ptr = arg_bod_ptr,
         .bod_len = arg_bod_len,
-    }) catch @panic("out of mem at start of cycle");
+    }) catch @panic("Mem preproc fault");
+
     nested.eval(ally);
 
-    // address of memory shared to the C/host
-    var re: WasiPtr = @intCast(WasiPtr, @ptrToInt(&RET_AREA));
-    // copy HTTP status code into the shared mem
-    @intToPtr([*c]i16, @intCast(usize, re)).* = @intCast(i16, response.status);
-    // copy headers to shared mem
-    if (response.headers.count() != 0) {
-        var ar = response.headers_as_array(ally).items;
-        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 12)).* = @intCast(i32, ar.len);
-        @intToPtr([*c]i32, @intCast(usize, re + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
-    } else {
-        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 0;
-    }
-    // copy body to shared mem
-    if (response.body.items.len != 0) {
-        var cp = ally.dupe(u8, response.body.items) catch {
-            @panic("FAIL response OutOfMem");
-        };
-        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 24)).* = @intCast(i32, cp.len);
-        @intToPtr([*c]i32, @intCast(usize, re + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
-    } else {
-        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 0;
-    }
-
-    return re;
+    return postprocess(ally);
 }
-
 fn canAbiRealloc(
     arg_ptr: ?*anyopaque,
     arg_oldsz: usize,
     arg_align: usize,
     arg_newsz: usize,
 ) callconv(.C) ?*anyopaque {
-    // zero means to _free_ in ziglang
-    // TODO (need to confirm behavior from wit-bindgen version)
     if (arg_newsz == 0) {
-        return @intToPtr(?*anyopaque, arg_align);
-    }
-
-    // null means to _allocate_
-    if (arg_ptr == null) {
-        const newslice = gpa.alloc(u8, arg_newsz) catch return null;
+        const newslice = gpa.alloc(u8, arg_align) catch @panic("Size 0 realloc fault");
         return newslice.ptr;
     }
-    //const al = @alignOf(usize);
+    if (arg_ptr == null) {
+        const newslice = gpa.alloc(u8, arg_newsz) catch @panic("Null ptr realloc fault");
+        return newslice.ptr;
+    }
+
     var cp = @ptrCast([*]u8, arg_ptr.?);
     var slice = cp[0..arg_oldsz];
-    const reslice = gpa.realloc(slice, arg_newsz) catch return null;
+    const reslice = gpa.realloc(slice, arg_newsz) catch @panic("Resize realloc fault");
     return reslice.ptr;
 }
-
 fn canAbiFree(arg_ptr: ?*anyopaque, arg_size: usize, arg_align: usize) callconv(.C) void {
+    // so based on above, does size zero mean to use align as size?
+    if (arg_size == 0) @panic("Zero free fault");
+    if (arg_ptr == null) @panic("Null ptr free fault");
     _ = arg_align;
-    if (arg_size == 0) return;
-    if (arg_ptr == null) return;
-    //const al = @alignOf(usize);
+    //std.debug.assert(arg_align == @alignOf(usize));
     var cp = @ptrCast([*]u8, arg_ptr.?);
     var slice = cp[0..arg_size];
-
     gpa.free(slice);
 }
 // end exports to comply with host
@@ -124,7 +96,7 @@ const nested = blk: {
         }
         // life cycle step
         fn eval(ally: Allocator) void {
-            scripts(ally, &response, .{
+            scripts(ally, &writer, .{
                 .method = http.method(),
                 .uri = http.uri(),
                 .body = http.body(),
@@ -135,82 +107,84 @@ const nested = blk: {
     break :blk keeper;
 };
 
-// static request in life cycle
-//var request: Request = undefined;
-var response: HttpResponse = undefined;
+// static vars in life cycle
+var writer: HttpResponse = undefined;
 // life cycle pre-process step
 fn preprocess(ally: Allocator, state: anytype) !void {
     // map memory addresses received from C/host
     try http.init(ally, state);
-
     // new response writer in life cycle
-    response = HttpResponse.init(ally);
+    writer = HttpResponse.init(ally);
 }
 // "null" script (zero case template)
 fn vanilla(ally: Allocator, w: *HttpResponse, rcv: anytype) void {
     _ = rcv;
     _ = ally;
     w.body.appendSlice("vanilla placeholder") catch {
-        w.status = 500;
+        w.status = std.http.Status.internal_server_error;
         return;
     };
-    w.status = 200;
+    w.status = std.http.Status.ok;
+}
+// life cycle post-process step
+fn postprocess(ally: Allocator) i32 {
+    // address of memory shared to the C/host
+    var re: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
+    // copy HTTP status code to share
+    @intToPtr([*c]i16, @intCast(usize, re)).* = @as(i16, @enumToInt(writer.status));
+
+    // store headers to share
+    if (writer.headers.list.items.len != 0) {
+        const ar = wasi.shipFields(ally, writer.headers) catch @panic("Own fields fault");
+        writer.shipped_fields = ar;
+        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 1;
+        @intToPtr([*c]i32, @intCast(usize, re + 12)).* = @intCast(i32, ar.len);
+        @intToPtr([*c]i32, @intCast(usize, re + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
+    } else {
+        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 0;
+    }
+
+    // store content to share
+    if (writer.body.items.len != 0) {
+        const cp = writer.body.toOwnedSlice() catch @panic("Own content fault");
+        writer.shipped_content = cp;
+        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 1;
+        @intToPtr([*c]i32, @intCast(usize, re + 24)).* = @intCast(i32, cp.len);
+        @intToPtr([*c]i32, @intCast(usize, re + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
+    } else {
+        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 0;
+    }
+
+    // address to share
+    return re;
 }
 
-// expose namespaces for convenience
+// act as umbrella namespace for the sdk
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
 pub const http = @import("http.zig");
 
-// writer for ziglang consumer
+// REFACTORING the writer channel of the response destined for the browser user
 pub const HttpResponse = struct {
     const Self = @This();
-    status: HttpStatus,
-    headers: std.StringHashMap([]const u8),
+    status: std.http.Status,
+    headers: std.http.Headers,
     body: std.ArrayList(u8),
+    shipped_fields: []wasi.Xfield,
+    shipped_content: []u8,
 
     pub fn init(ally: Allocator) Self {
         return Self{
-            .status = @enumToInt(std.http.Status.not_found),
-            .headers = std.StringHashMap([]const u8).init(ally),
+            .status = std.http.Status.not_found,
+            .headers = std.http.Headers.init(ally),
             .body = std.ArrayList(u8).init(ally),
+            .shipped_fields = undefined,
+            .shipped_content = undefined,
         };
     }
-    // conversion for C/interop
-    pub fn headers_as_array(self: Self, ally: Allocator) std.ArrayList(WasiTuple) {
-        var arr = std.ArrayList(WasiTuple).init(ally);
-        var iter = self.headers.iterator();
-        while (iter.next()) |entry| {
-            var key = ally.dupe(u8, entry.key_ptr.*) catch {
-                @panic("FAIL headers key dupe");
-            };
-            var val = ally.dupe(u8, entry.value_ptr.*) catch {
-                @panic("FAIL headers val dupe");
-            };
-            var tup = WasiTuple{
-                .f0 = WasiStr{ .ptr = key.ptr, .len = key.len },
-                .f1 = WasiStr{ .ptr = val.ptr, .len = val.len },
-            };
-            arr.append(tup) catch {
-                @panic("FAIL headers slice");
-            };
-        }
-        return arr;
-    }
-
     pub fn deinit(self: *Self) void {
-        //TODO free map items
         self.headers.deinit();
         self.body.deinit();
     }
 };
-
-// C/interop address
-const WasiPtr = i32;
-// "anon" struct just for address to tuple C/interop
-const WasiStr = extern struct { ptr: [*c]u8, len: usize };
-const WasiTuple = extern struct { f0: WasiStr, f1: WasiStr };
-
-/// HTTP status codes.
-pub const HttpStatus = u16;

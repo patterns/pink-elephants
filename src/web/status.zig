@@ -58,5 +58,5 @@ pub fn ok(w: *lib.HttpResponse) void {
 }
 
 fn code(w: *lib.HttpResponse, comptime sc: std.http.Status) void {
-    w.status = @enumToInt(sc);
+    w.status = sc;
 }
