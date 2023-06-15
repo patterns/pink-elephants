@@ -2,7 +2,6 @@ const std = @import("std");
 
 const spin = @import("../spin/lib.zig");
 const vrf = @import("../verify/verifier.zig");
-const meth = @import("../web/method.zig");
 const Allocator = std.mem.Allocator;
 const cert = std.crypto.Certificate;
 const expectStr = std.testing.expectEqualStrings;
@@ -13,7 +12,7 @@ test "verify peop" {
     defer raw.deinit();
 
     var sim_rcv_request = .{
-        .method = meth.Verb.post,
+        .method = .POST,
         .uri = "/users/oatmeal/inbox",
         .headers = raw,
         .body = undefined,
