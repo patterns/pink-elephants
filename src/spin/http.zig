@@ -85,6 +85,3 @@ const context = struct {
         }
     }
 };
-
-// C/interop address
-//const WasiPtr = i32;

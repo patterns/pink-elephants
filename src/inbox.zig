@@ -11,7 +11,7 @@ pub fn main() void {
     std.debug.print("placeholder ", .{});
 }
 
-fn inboxScript(ally: std.mem.Allocator, w: *spin.HttpResponse, rcv: anytype) void {
+fn inboxScript(ally: std.mem.Allocator, ret: anytype, rcv: anytype) void {
     if (!proxy.verifySignature(ally, rcv)) {
         // normally halt and respond with server-error
         ////return status.internal(w);
@@ -23,7 +23,7 @@ fn inboxScript(ally: std.mem.Allocator, w: *spin.HttpResponse, rcv: anytype) voi
     //TODO limit body content to 1MB
     var tree = str.toTree(ally, rcv.body) catch {
         std.log.err("JSON unexpected fault\x0A", .{});
-        return status.unprocessable(w);
+        return; //// status.unprocessable(w);
     };
     defer tree.deinit();
 
@@ -31,12 +31,12 @@ fn inboxScript(ally: std.mem.Allocator, w: *spin.HttpResponse, rcv: anytype) voi
     ////spin.redis.enqueue(ally, tree) catch {
     spin.redis.debugDetail(ally, .{ .rcv = rcv, .tree = tree }) catch {
         std.log.err("save fault\x0A", .{});
-        return status.internal(w);
+        return; //// status.internal(w);
     };
 
-    w.headers.append("Content-Type", "application/json") catch {
+    ret.headers.append("Content-Type", "application/json") catch {
         std.log.err("response header, OutOfMem\x0A", .{});
     };
 
-    status.ok(w);
+    ////status.ok(w);
 }

@@ -1,12 +1,13 @@
 const std = @import("std");
 const wasi = @import("wasi.zig");
+const http = @import("http.zig");
 const Allocator = std.mem.Allocator;
 // static allocator
 var gpal = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
-pub const EvalFn = *const fn (ally: Allocator, w: *HttpResponse, rcv: anytype) void;
+pub const EvalFn = *const fn (ally: Allocator, ret: anytype, rcv: anytype) void;
 pub fn handle(comptime h: EvalFn) void {
     nested.next(h);
 }
@@ -32,7 +33,7 @@ fn guestHttpInit(
     arg_bod_len: i32,
 ) callconv(.C) i32 {
     var arena = std.heap.ArenaAllocator.init(gpa);
-    ////defer arena.deinit();
+    defer arena.deinit();
     const ally = arena.allocator();
     // life cycle begins
     preprocess(ally, .{
@@ -50,7 +51,7 @@ fn guestHttpInit(
 
     nested.eval(ally);
 
-    return postprocess(ally);
+    return postprocess();
 }
 fn canAbiRealloc(
     arg_ptr: ?*anyopaque,
@@ -96,7 +97,11 @@ const nested = blk: {
         }
         // life cycle step
         fn eval(ally: Allocator) void {
-            scripts(ally, &writer, .{
+            scripts(ally, .{
+                //.status = wasi.status(),
+                .headers = wasi.headers(),
+                .body = wasi.body(),
+            }, .{
                 .method = http.method(),
                 .uri = http.uri(),
                 .body = http.body(),
@@ -108,83 +113,76 @@ const nested = blk: {
 };
 
 // static vars in life cycle
-var writer: HttpResponse = undefined;
+////var writer: HttpResponse = undefined;
 // life cycle pre-process step
 fn preprocess(ally: Allocator, state: anytype) !void {
     // map memory addresses received from C/host
     try http.init(ally, state);
-    // new response writer in life cycle
-    writer = HttpResponse.init(ally);
+    // initialize response writer in life cycle
+    ////writer = HttpResponse.init(ally);
+    wasi.shipping(ally);
 }
 // "null" script (zero case template)
-fn vanilla(ally: Allocator, w: *HttpResponse, rcv: anytype) void {
+fn vanilla(ally: Allocator, ret: anytype, rcv: anytype) void {
     _ = rcv;
     _ = ally;
-    w.body.appendSlice("vanilla placeholder") catch {
-        w.status = std.http.Status.internal_server_error;
+    ret.body.appendSlice("vanilla placeholder") catch {
+        //wasi.status( std.http.Status.internal_server_error );
         return;
     };
-    w.status = std.http.Status.ok;
+    //wasi.status( std.http.Status.ok );
 }
 // life cycle post-process step
-fn postprocess(ally: Allocator) i32 {
+fn postprocess() i32 {
+    const ally = wasi.shipAllocator();
+    const ret = wasi.shipReturns();
+
     // address of memory shared to the C/host
-    var re: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
+    const ad: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
     // copy HTTP status code to share
-    @intToPtr([*c]i16, @intCast(usize, re)).* = @as(i16, @enumToInt(writer.status));
+    @intToPtr([*c]i16, @intCast(usize, ad)).* = @as(i16, @enumToInt(ret.status));
 
     // store headers to share
-    if (writer.headers.list.items.len != 0) {
-        const ar = wasi.shipFields(ally, writer.headers) catch @panic("Own fields fault");
-        writer.shipped_fields = ar;
-        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 12)).* = @intCast(i32, ar.len);
-        @intToPtr([*c]i32, @intCast(usize, re + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
+    if (ret.headers.list.items.len != 0) {
+        const ar = wasi.shipFields(ally, ret.headers) catch @panic("Own fields fault");
+        @intToPtr([*c]i8, @intCast(usize, ad + 4)).* = 1;
+        @intToPtr([*c]i32, @intCast(usize, ad + 12)).* = @intCast(i32, ar.len);
+        @intToPtr([*c]i32, @intCast(usize, ad + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
     } else {
-        @intToPtr([*c]i8, @intCast(usize, re + 4)).* = 0;
+        @intToPtr([*c]i8, @intCast(usize, ad + 4)).* = 0;
     }
 
     // store content to share
-    if (writer.body.items.len != 0) {
-        const cp = writer.body.toOwnedSlice() catch @panic("Own content fault");
-        writer.shipped_content = cp;
-        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, re + 24)).* = @intCast(i32, cp.len);
-        @intToPtr([*c]i32, @intCast(usize, re + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
+    if (ret.body.items.len != 0) {
+        const cp = ret.body.items;
+        @intToPtr([*c]i8, @intCast(usize, ad + 16)).* = 1;
+        @intToPtr([*c]i32, @intCast(usize, ad + 24)).* = @intCast(i32, cp.len);
+        @intToPtr([*c]i32, @intCast(usize, ad + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
     } else {
-        @intToPtr([*c]i8, @intCast(usize, re + 16)).* = 0;
+        @intToPtr([*c]i8, @intCast(usize, ad + 16)).* = 0;
     }
 
     // address to share
-    return re;
+    return ad;
 }
 
 // act as umbrella namespace for the sdk
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
-pub const http = @import("http.zig");
 
 // REFACTORING the writer channel of the response destined for the browser user
-pub const HttpResponse = struct {
+pub const HttpResponse99 = struct {
     const Self = @This();
     status: std.http.Status,
     headers: std.http.Headers,
     body: std.ArrayList(u8),
-    shipped_fields: []wasi.Xfield,
-    shipped_content: []u8,
 
     pub fn init(ally: Allocator) Self {
         return Self{
             .status = std.http.Status.not_found,
             .headers = std.http.Headers.init(ally),
             .body = std.ArrayList(u8).init(ally),
-            .shipped_fields = undefined,
-            .shipped_content = undefined,
         };
-    }
-    pub fn deinit(self: *Self) void {
-        self.headers.deinit();
-        self.body.deinit();
     }
 };

@@ -15,13 +15,13 @@ pub fn main() void {
 const actor_json = @embedFile("actor.json");
 const followers_json = @embedFile("followers.json");
 const following_json = @embedFile("following.json");
-fn actorScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
-    if (rcv.method != .GET) return status.nomethod(w);
+fn actorScript(ally: Allocator, ret: anytype, rcv: anytype) void {
+    if (rcv.method != .GET) return; //// status.nomethod(w);
 
-    w.headers.append("Content-Type", "application/json") catch {
+    ret.headers.append("Content-Type", "application/json") catch {
         log.err(" response header", .{});
     };
-    w.headers.append("Access-Control-Allow-Origin", "*") catch {
+    ret.headers.append("Access-Control-Allow-Origin", "*") catch {
         log.err(" response header", .{});
     };
 
@@ -30,28 +30,28 @@ fn actorScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
 
     const branch = unknownActor(ally, rcv.uri, who) catch {
         log.err("allocPrint, OutOfMem", .{});
-        return status.internal(w);
+        return; //// status.internal(w);
     };
     switch (branch) {
-        .actor => w.body.appendSlice(actor_json) catch {
+        .actor => ret.body.appendSlice(actor_json) catch {
             log.err("actor, OutOfMem", .{});
-            return status.internal(w);
+            return; //// status.internal(w);
         },
 
-        .followers => w.body.appendSlice(followers_json) catch {
+        .followers => ret.body.appendSlice(followers_json) catch {
             log.err("followers, OutOfMem", .{});
-            return status.internal(w);
+            return; //// status.internal(w);
         },
 
-        .following => w.body.appendSlice(following_json) catch {
+        .following => ret.body.appendSlice(following_json) catch {
             log.err("following, OutOfMem", .{});
-            return status.internal(w);
+            return; //// status.internal(w);
         },
 
-        .empty => return status.notfound(w),
+        .empty => return, //// status.notfound(w),
     }
 
-    status.ok(w);
+    ////status.ok(w);
 }
 
 // "static" actor has limited formats
