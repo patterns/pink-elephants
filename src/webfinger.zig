@@ -15,10 +15,10 @@ pub fn main() void {
 
 const webfinger_json = @embedFile("webfinger.json");
 fn webfingerScript(ally: Allocator, ret: anytype, rcv: anytype) void {
-    if (rcv.method != .GET) return; //// status.nomethod(w);
+    if (rcv.method != .GET) return status.nomethod();
 
     const unknown = unknownResource(ally, rcv.uri);
-    if (unknown) return; //// status.bad(w);
+    if (unknown) return status.bad();
 
     ret.headers.append("Content-Type", "application/jrd+json") catch {
         log.err("ERROR response header", .{});
@@ -28,10 +28,10 @@ fn webfingerScript(ally: Allocator, ret: anytype, rcv: anytype) void {
     };
     ret.body.appendSlice(webfinger_json) catch {
         log.err("ERROR webfinger body", .{});
-        return; //// status.internal(w);
+        return status.internal();
     };
 
-    ////status.ok(w);
+    status.ok();
 }
 
 // check query param 'resource'

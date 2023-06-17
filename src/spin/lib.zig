@@ -1,6 +1,7 @@
 const std = @import("std");
 const wasi = @import("wasi.zig");
 const http = @import("http.zig");
+const status = @import("../web/status.zig");
 const Allocator = std.mem.Allocator;
 // static allocator
 var gpal = std.heap.GeneralPurposeAllocator(.{}){};
@@ -98,7 +99,6 @@ const nested = blk: {
         // life cycle step
         fn eval(ally: Allocator) void {
             scripts(ally, .{
-                //.status = wasi.status(),
                 .headers = wasi.headers(),
                 .body = wasi.body(),
             }, .{
@@ -112,14 +112,11 @@ const nested = blk: {
     break :blk keeper;
 };
 
-// static vars in life cycle
-////var writer: HttpResponse = undefined;
 // life cycle pre-process step
 fn preprocess(ally: Allocator, state: anytype) !void {
     // map memory addresses received from C/host
     try http.init(ally, state);
     // initialize response writer in life cycle
-    ////writer = HttpResponse.init(ally);
     wasi.shipping(ally);
 }
 // "null" script (zero case template)
@@ -127,15 +124,17 @@ fn vanilla(ally: Allocator, ret: anytype, rcv: anytype) void {
     _ = rcv;
     _ = ally;
     ret.body.appendSlice("vanilla placeholder") catch {
-        //wasi.status( std.http.Status.internal_server_error );
+        status.internal();
         return;
     };
-    //wasi.status( std.http.Status.ok );
+    status.ok();
 }
 // life cycle post-process step
 fn postprocess() i32 {
     const ally = wasi.shipAllocator();
     const ret = wasi.shipReturns();
+
+    // TODO most of this feels very wasi, does it need to move into wasi namespace?
 
     // address of memory shared to the C/host
     const ad: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
@@ -170,19 +169,3 @@ fn postprocess() i32 {
 pub const redis = @import("redis.zig");
 pub const config = @import("config.zig");
 pub const outbound = @import("outbound.zig");
-
-// REFACTORING the writer channel of the response destined for the browser user
-pub const HttpResponse99 = struct {
-    const Self = @This();
-    status: std.http.Status,
-    headers: std.http.Headers,
-    body: std.ArrayList(u8),
-
-    pub fn init(ally: Allocator) Self {
-        return Self{
-            .status = std.http.Status.not_found,
-            .headers = std.http.Headers.init(ally),
-            .body = std.ArrayList(u8).init(ally),
-        };
-    }
-};

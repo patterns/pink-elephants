@@ -16,7 +16,7 @@ const actor_json = @embedFile("actor.json");
 const followers_json = @embedFile("followers.json");
 const following_json = @embedFile("following.json");
 fn actorScript(ally: Allocator, ret: anytype, rcv: anytype) void {
-    if (rcv.method != .GET) return; //// status.nomethod(w);
+    if (rcv.method != .GET) return status.nomethod();
 
     ret.headers.append("Content-Type", "application/json") catch {
         log.err(" response header", .{});
@@ -30,28 +30,28 @@ fn actorScript(ally: Allocator, ret: anytype, rcv: anytype) void {
 
     const branch = unknownActor(ally, rcv.uri, who) catch {
         log.err("allocPrint, OutOfMem", .{});
-        return; //// status.internal(w);
+        return status.internal();
     };
     switch (branch) {
         .actor => ret.body.appendSlice(actor_json) catch {
             log.err("actor, OutOfMem", .{});
-            return; //// status.internal(w);
+            return status.internal();
         },
 
         .followers => ret.body.appendSlice(followers_json) catch {
             log.err("followers, OutOfMem", .{});
-            return; //// status.internal(w);
+            return status.internal();
         },
 
         .following => ret.body.appendSlice(following_json) catch {
             log.err("following, OutOfMem", .{});
-            return; //// status.internal(w);
+            return status.internal();
         },
 
-        .empty => return, //// status.notfound(w),
+        .empty => return status.notfound(),
     }
 
-    ////status.ok(w);
+    status.ok();
 }
 
 // "static" actor has limited formats
