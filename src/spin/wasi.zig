@@ -1,9 +1,5 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
-// static allocator
-var gpal = std.heap.GeneralPurposeAllocator(.{}){};
-const gpa = gpal.allocator();
 
 // prepare ownership switch to control by C/host
 pub fn shipFields(ally: Allocator, h: std.http.Headers) ![]Xfield {
@@ -50,7 +46,53 @@ pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
     return pairs.toOwnedSlice();
 }
 
-//todo clean up, not used as much.....
+// allocator for caller to prep returns for shipping (back to C/host)
+pub fn shipAllocator() Allocator {
+    return returns.fba.allocator();
+}
+// accumulated fields which caller will use to prep returns step
+pub fn shipReturns() struct {
+    status: std.http.Status,
+    headers: std.http.Headers,
+    body: std.ArrayList(u8),
+} {
+    return .{
+        .status = returns.status,
+        .headers = returns.h,
+        .body = returns.json,
+    };
+}
+
+pub fn headers() *std.http.Headers {
+    return &returns.h;
+}
+pub fn body() *std.ArrayList(u8) {
+    return &returns.json;
+}
+// not used directed and wrapped by web/status for convenience
+pub fn status(s: std.http.Status) void {
+    returns.status = s;
+}
+
+// *init* for the returns overlay
+pub fn shipping(ally: Allocator) void {
+    returns.fba = std.heap.FixedBufferAllocator.init(&SHIP_RETURNS);
+    returns.status = std.http.Status.service_unavailable;
+    returns.h = std.http.Headers.init(ally);
+    returns.json = std.ArrayList(u8).init(ally);
+}
+// static global to back the shipping allocations (outside arena.deinit scope)
+var SHIP_RETURNS: [8192]u8 align(4) = std.mem.zeroes([8192]u8);
+// namespace nesting (to overlay return items of "response")
+const returns = struct {
+    // static vars
+    var fba: std.heap.FixedBufferAllocator = undefined;
+    var status: std.http.Status = undefined;
+    var h: std.http.Headers = undefined;
+    var json: std.ArrayList(u8) = undefined;
+};
+
+//todo clean up, not used very much.....
 // The basic type according to translate-c
 // ([*c]u8 is both char* and uint8*)
 pub const xdata = struct {
@@ -89,5 +131,6 @@ pub const xdata = struct {
 // release memory that was allocated by host (using CanonicalAbiAlloc)
 fn gpfree(ptr: ?[*]u8, len: usize) void {
     if (len == 0 or ptr == null) return;
-    gpa.free(ptr.?[0..len]);
+    var gpal = std.heap.GeneralPurposeAllocator(.{}){};
+    gpal.allocator().free(ptr.?[0..len]);
 }

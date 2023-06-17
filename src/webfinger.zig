@@ -2,7 +2,7 @@ const std = @import("std");
 const spin = @import("spin/lib.zig");
 const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
-const meth = @import("web/method.zig");
+
 const Allocator = std.mem.Allocator;
 const log = std.log;
 
@@ -14,24 +14,24 @@ pub fn main() void {
 }
 
 const webfinger_json = @embedFile("webfinger.json");
-fn webfingerScript(ally: Allocator, w: *spin.HttpResponse, rcv: anytype) void {
-    if (rcv.method != meth.Verb.get) return status.nomethod(w);
+fn webfingerScript(ally: Allocator, ret: anytype, rcv: anytype) void {
+    if (rcv.method != .GET) return status.nomethod();
 
     const unknown = unknownResource(ally, rcv.uri);
-    if (unknown) return status.bad(w);
+    if (unknown) return status.bad();
 
-    w.headers.append("Content-Type", "application/jrd+json") catch {
+    ret.headers.append("Content-Type", "application/jrd+json") catch {
         log.err("ERROR response header", .{});
     };
-    w.headers.append("Access-Control-Allow-Origin", "*") catch {
+    ret.headers.append("Access-Control-Allow-Origin", "*") catch {
         log.err("ERROR response header", .{});
     };
-    w.body.appendSlice(webfinger_json) catch {
+    ret.body.appendSlice(webfinger_json) catch {
         log.err("ERROR webfinger body", .{});
-        return status.internal(w);
+        return status.internal();
     };
 
-    status.ok(w);
+    status.ok();
 }
 
 // check query param 'resource'

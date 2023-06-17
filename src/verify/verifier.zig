@@ -1,15 +1,12 @@
 const std = @import("std");
 const pkcs1 = @import("pkcs1");
-
 const spin = @import("../spin/lib.zig");
-const meth = @import("../web/method.zig");
+
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const log = std.log;
 const b64 = std.base64.standard.Decoder;
-const streq = std.ascii.eqlIgnoreCase;
 const cert = std.crypto.Certificate;
-const dere = cert.der.Element;
 
 pub const ProduceVerifierFn = *const fn (ally: Allocator, key_provider: []const u8) anyerror!ParsedVerifier;
 
@@ -115,7 +112,7 @@ const ByRSASignerImpl = struct {
 
     fn deinit(self: *Self) void {
         //if (self.prev == undefined) return;
-        //self.prev.clearAndFree();
+
         self.prev.deinit();
         self.parsed.deinit(self.ally);
     }
@@ -125,7 +122,7 @@ const ByRSASignerImpl = struct {
         rcv: anytype,
         out: std.io.FixedBufferStream([]u8).Writer,
     ) !void {
-        const verb: meth.Verb = rcv.method;
+        const verb: std.http.Method = rcv.method;
         const uri: []const u8 = rcv.uri;
         const h2: std.http.Headers = rcv.headers;
 
@@ -143,9 +140,12 @@ const ByRSASignerImpl = struct {
             log.err("Httpsig leader format, {s}", .{first.?});
             return error.SignatureFormat;
         }
+        var buffer: [8]u8 = undefined;
+        const streq = std.ascii.eqlIgnoreCase;
+        const verb_low = std.ascii.lowerString(&buffer, @tagName(verb));
 
         // base leader
-        try out.print("{0s}: {1s} {2s}", .{ first.?, verb.toDescr(), uri });
+        try out.print("{0s}: {1s} {2s}", .{ first.?, verb_low, uri });
         // base elements
         while (it.next()) |base_el| {
             if (streq("host", base_el)) {
@@ -275,7 +275,7 @@ pub fn fromPEM(
 
     // type-length-value begins 0x30 (sequence tag)
     if (der_bytes[0] != 0x30) return error.Asn1SequenceTag;
-
+    const dere = cert.der.Element;
     const spki_el = try dere.parse(&der_bytes, 0);
     const algo_el = try dere.parse(&der_bytes, spki_el.slice.start);
     const bits_el = try dere.parse(&der_bytes, algo_el.slice.end);
