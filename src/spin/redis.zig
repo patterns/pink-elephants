@@ -1,6 +1,5 @@
 const std = @import("std");
 const config = @import("config.zig");
-const log = std.log;
 
 // add _job_ item that will be picked up by a _worker_
 pub fn enqueue(ally: std.mem.Allocator, content: std.json.ValueTree) !void {
@@ -12,26 +11,15 @@ pub fn enqueue(ally: std.mem.Allocator, content: std.json.ValueTree) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    //TODO want the SHA checksum from the header for uniqueness
-    var key: []const u8 = undefined;
-    var idval = content.root.object.get("id");
-    if (idval) |v| {
-        key = v.string;
-    } else {
-        // fallback pseudo-id
-        key = try std.fmt.allocPrintZ(ally, "{d}", .{std.time.milliTimestamp()});
-    }
-    // duplicate id to sentinel-terminated
-    //const key = content.root.object.get("id").?.string;
-    const ckey = try ally.dupeZ(u8, key);
-    defer ally.free(ckey);
+    var sequence_num = try pseudoSeq(ally, content.root.object.get("id"));
+    defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
     const addr: []const u8 = config.redisAddress() orelse "redis://127.0.0.1:6379";
     const caddr = try ally.dupeZ(u8, addr);
     defer ally.free(caddr);
 
-    saveEvent(caddr, ckey, cpayload);
+    saveEvent(caddr, sequence_num, cpayload);
 }
 
 // capture extra request detail to debug/tests
@@ -49,17 +37,26 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    // duplicate id to sentinel-terminated
-    const key = tree.root.object.get("id").?.string;
-    const ckey = try ally.dupeZ(u8, key);
-    defer ally.free(ckey);
+    var sequence_num = try pseudoSeq(ally, tree.root.object.get("id"));
+    defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
     const addr: []const u8 = config.redisAddress() orelse "redis://127.0.0.1:6379";
     const caddr = try ally.dupeZ(u8, addr);
     defer ally.free(caddr);
 
-    saveEvent(caddr, ckey, cpayload);
+    saveEvent(caddr, sequence_num, cpayload);
+}
+
+// duplicate id to sentinel-terminated
+fn pseudoSeq(ally: std.mem.Allocator, id: ?std.json.Value) ![:0]u8 {
+    //TODO want the SHA checksum from the header for uniqueness
+
+    if (id) |val| {
+        return try ally.dupeZ(u8, val.string);
+    }
+    // fallback pseudo-id
+    return try std.fmt.allocPrintZ(ally, "{d}", .{std.time.milliTimestamp()});
 }
 
 /////////////////////////////////////////////////////////////
@@ -80,9 +77,9 @@ fn saveEvent(redis: [:0]u8, key: [:0]u8, value: [:0]u8) void {
     const errcode = @intCast(usize, @intToPtr([*c]u8, @intCast(usize, result)).*);
     if (errcode == 0) {
         // zero means ok
-        log.debug("redis.set, {s}\x0A", .{key});
+        std.log.debug("redis.set, {s}\x0A", .{key});
     } else {
         // error (more detail hydration todo)
-        log.err("redis.set failed", .{});
+        std.log.err("redis.set failed", .{});
     }
 }

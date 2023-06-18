@@ -3,9 +3,6 @@ const wasi = @import("wasi.zig");
 const http = @import("http.zig");
 const status = @import("../web/status.zig");
 const Allocator = std.mem.Allocator;
-// static allocator
-var gpal = std.heap.GeneralPurposeAllocator(.{}){};
-const gpa = gpal.allocator();
 
 // signature for scripters to write custom handlers (in zig)
 pub const EvalFn = *const fn (ally: Allocator, ret: anytype, rcv: anytype) void;
@@ -19,6 +16,9 @@ comptime {
     @export(canAbiRealloc, .{ .name = "canonical_abi_realloc" });
     @export(canAbiFree, .{ .name = "canonical_abi_free" });
 }
+var gpal = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gpal.allocator();
+
 var RET_AREA: [28]u8 align(4) = std.mem.zeroes([28]u8);
 // entry point for C/host to guest process env
 fn guestHttpInit(
