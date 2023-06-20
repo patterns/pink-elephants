@@ -2,16 +2,16 @@ const std = @import("std");
 const config = @import("config.zig");
 
 // add _job_ item that will be picked up by a _worker_
-pub fn enqueue(ally: std.mem.Allocator, content: std.json.ValueTree) !void {
+pub fn enqueue(ally: std.mem.Allocator, content: std.json.Value) !void {
     var bucket = std.ArrayList(u8).init(ally);
     defer bucket.deinit();
-    try content.root.jsonStringify(.{}, bucket.writer());
+    try content.jsonStringify(.{}, bucket.writer());
 
     // duplicate payload to sentinel-terminated
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    var sequence_num = try pseudoSeq(ally, content.root.object.get("id"));
+    var sequence_num = try pseudoSeq(ally, content.object.get("id"));
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
@@ -24,12 +24,12 @@ pub fn enqueue(ally: std.mem.Allocator, content: std.json.ValueTree) !void {
 
 // capture extra request detail to debug/tests
 pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
-    const tree = option.tree;
+    const root = option.tree;
     const rcv = option.rcv;
 
     var bucket = std.ArrayList(u8).init(ally);
     defer bucket.deinit();
-    try tree.root.jsonStringify(.{}, bucket.writer());
+    try root.jsonStringify(.{}, bucket.writer());
     try bucket.appendSlice("##DEBUG##");
     try rcv.headers.format("{s}", .{}, bucket.writer());
 
@@ -37,7 +37,7 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    var sequence_num = try pseudoSeq(ally, tree.root.object.get("id"));
+    var sequence_num = try pseudoSeq(ally, root.object.get("id"));
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
@@ -80,6 +80,6 @@ fn saveEvent(redis: [:0]u8, key: [:0]u8, value: [:0]u8) void {
         std.log.debug("redis.set, {s}\x0A", .{key});
     } else {
         // error (more detail hydration todo)
-        std.log.err("redis.set failed", .{});
+        std.log.err("redis.set fault", .{});
     }
 }

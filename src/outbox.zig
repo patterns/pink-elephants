@@ -13,21 +13,22 @@ pub fn main() void {
 
 fn outboxScript(ally: std.mem.Allocator, ret: anytype, rcv: anytype) void {
     //TODO limit body content to 1MB
-    var tree = str.toTree(ally, rcv.body) catch {
-        std.log.err("JSON unexpected fault\x0A", .{});
+    var parsed = std.json.parseFromSlice(std.json.Value, ally, rcv.body, .{}) catch {
+        std.log.err("JSON deserialize fault\x0A", .{});
         return status.unprocessable();
     };
-    defer tree.deinit();
+    defer parsed.deinit();
+    const root = parsed.value;
     // todo verify timestamp
     if (!proxy.verifySignature(ally, rcv)) {
-        spin.redis.debugDetail(ally, .{ .rcv = rcv, .tree = tree }) catch {
+        spin.redis.debugDetail(ally, .{ .rcv = rcv, .tree = root }) catch {
             std.log.err("Detail fault\x0A", .{});
         };
         return status.internal();
     }
 
     // capture for now (add processing later)
-    spin.redis.enqueue(ally, tree) catch {
+    spin.redis.enqueue(ally, root) catch {
         std.log.err("Enqueue fault\x0A", .{});
         return status.internal();
     };

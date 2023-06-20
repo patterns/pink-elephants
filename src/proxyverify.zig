@@ -53,12 +53,15 @@ fn produceVerifierByProxy(ally: Allocator, key_provider: []const u8) !vrf.Parsed
 
 // read the PEM section from the actor JSON
 fn pemFragment(ally: Allocator, js: []const u8) ![]const u8 {
-    var parser = std.json.Parser.init(ally, .alloc_if_needed);
-    defer parser.deinit();
-    var tree = try parser.parse(js);
-    defer tree.deinit();
+    //var parser = std.json.Parser.init(ally, .alloc_if_needed);
+    //defer parser.deinit();
+    //var tree = try parser.parse(js);
+    //defer tree.deinit();
+    var parsed = try std.json.parseFromSlice(std.json.Value, ally, js, .{});
+    defer parsed.deinit();
+    const root = parsed.value;
 
-    if (tree.root.object.get("publicKey")) |pubK| {
+    if (root.object.get("publicKey")) |pubK| {
         //const id = pubK.object.get("id").?.string;
         //const owner = pubK.object.get("owner").?.string;
         const pem = pubK.object.get("publicKeyPem").?.string;
