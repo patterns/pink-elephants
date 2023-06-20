@@ -4,7 +4,6 @@ const spin = @import("../spin/lib.zig");
 
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const log = std.log;
 const b64 = std.base64.standard.Decoder;
 const cert = std.crypto.Certificate;
 
@@ -137,7 +136,7 @@ const ByRSASignerImpl = struct {
 
         // TODO double-check this, seen docs that begin with other subheaders
         if (!mem.startsWith(u8, first.?, "(request-target)")) {
-            log.err("Httpsig leader format, {s}", .{first.?});
+            std.log.err("Httpsig leader format, {s}", .{first.?});
             return error.SignatureFormat;
         }
         var buffer: [8]u8 = undefined;
@@ -293,7 +292,7 @@ pub fn fromPEM(
     const off4 = off3 + val2;
     const algo_cat = cert.AlgorithmCategory.map.get(der_bytes[off3..off4]);
     if (algo_cat == null) {
-        log.warn("DER parse, pubkey algorithm unknown  ", .{});
+        std.log.warn("DER parse, pubkey algorithm unknown  ", .{});
         return error.UnknownAlgorithm;
     }
     var algo: cert.Parsed.PubKeyAlgo = undefined;
@@ -301,7 +300,7 @@ pub fn fromPEM(
         .rsaEncryption => algo = .{ .rsaEncryption = {} },
         else => {
             // handle Ed25519 otherwise panic?
-            log.warn("algo unknown", .{});
+            std.log.warn("algo unknown", .{});
         },
     }
 
@@ -309,7 +308,7 @@ pub fn fromPEM(
     const pub_slice = cb.buffer[pub_key.start..pub_key.end];
     ////const pk_components = try cert.rsa.PublicKey.parseDer(pub_slice);
     ////return try cert.rsa.PublicKey.fromBytes(pk_components.exponent, pk_components.modulus, ally);
-    //log.warn("e {d}, n {any}", .{
+    //std.log.warn("e {d}, n {any}", .{
     //    std.fmt.fmtSliceHexLower(pk_components.exponent),
     //    std.fmt.fmtSliceHexLower(pk_components.modulus),
     //});

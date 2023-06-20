@@ -3,16 +3,6 @@ const mem = std.mem;
 const log = std.log;
 const Allocator = mem.Allocator;
 
-// convenience routine for transforming request body into JSON tree
-pub fn toTree(ally: Allocator, body: [:0]const u8) !std.json.ValueTree {
-    const sane_json = try std.json.validate(ally, body);
-    if (!sane_json) return error.Malformed;
-    var parser = std.json.Parser.init(ally, std.json.AllocWhen.alloc_if_needed);
-    defer parser.deinit();
-    var tree = parser.parse(body) catch return error.Malformed;
-    return tree;
-}
-
 // extract path from request
 pub fn toPath(ur: []const u8) []const u8 {
     // expect /path?...
@@ -47,16 +37,6 @@ pub fn qryParams(allocator: Allocator, txt: []const u8) std.StringHashMap([]cons
         .trim = null,
     });
 }
-
-// DEPRECATE
-//fn sigPairs(allocator: Allocator, raw: []const u8) std.StringHashMap([]const u8) {
-//    const discard: ?[]const u8 = "\"";
-//    return txtPairs(allocator, .{
-//        .data = raw,
-//        .delim = ",",
-//        .trim = discard,
-//    });
-//}
 
 fn txtPairs(allocator: Allocator, option: anytype) std.StringHashMap([]const u8) {
     const data: []const u8 = option.data;
@@ -211,4 +191,4 @@ fn fmtAscii(from: []const u8) []const u8 {
     return from;
 }
 
-pub const JsonError = error{Malformed};
+//pub const JsonError = error{Malformed};

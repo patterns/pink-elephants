@@ -1,6 +1,9 @@
 const std = @import("std");
-//const lib = @import("../spin/lib.zig");
 const ret = @import("../spin/wasi.zig");
+
+// here we rely on the returns overlay defined from wasi namespace
+// which exposes the status "set-ter". Then we can in turn, have
+// convenience wrappers.
 
 pub fn nomethod() void {
     ret.status(std.http.Status.method_not_allowed);
@@ -57,7 +60,3 @@ pub fn nocontent() void {
 pub fn ok() void {
     ret.status(std.http.Status.ok);
 }
-
-//fn code(w: *lib.HttpResponse, comptime sc: std.http.Status) void {
-//    w.status = sc;
-//}
