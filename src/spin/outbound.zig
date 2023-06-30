@@ -11,7 +11,7 @@ pub fn get(uri: []const u8, h: []was.Xfield) !void {
         //.params = params,
     });
 
-    std.log.debug("Outbound GET, {any}", .{result});
+    std.log.debug("Outbound.get, {any}\x0A", .{result});
 }
 
 pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anytype) ![]const u8 {
@@ -64,15 +64,17 @@ pub fn send(req: anytype) ![]const u8 {
     // of fields; not the same as http.Request or spin.Request
     // (make the response also anon struct?)
 
-    const method = @bitCast(i32, @as(c_uint, req.method));
+    const method: i32 = @bitCast(@as(c_uint, req.method));
 
     const uri: [:0]const u8 = req.uri;
-    const uri_ptr = @intCast(i32, @ptrToInt(uri.ptr));
-    const uri_len = @bitCast(i32, @truncate(c_uint, uri.len));
+    const up: usize = @intFromPtr(uri.ptr);
+    const uri_ptr: i32 = @intCast(up);
+    const uri_len: i32 = @intCast(uri.len);
 
     const headers: []was.Xfield = req.headers;
-    const hdr_ptr = @intCast(i32, @ptrToInt(headers.ptr));
-    const hdr_len = @bitCast(i32, @truncate(c_uint, headers.len));
+    const hp: usize = @intFromPtr(headers.ptr);
+    const hdr_ptr: i32 = @intCast(hp);
+    const hdr_len: i32 = @intCast(headers.len);
 
     //const params = req.params.items;
     //const par_ptr = @intCast(i32, @ptrToInt(params.ptr));
@@ -84,11 +86,13 @@ pub fn send(req: anytype) ![]const u8 {
     var js_len: i32 = 0;
     if (js.len != 0) {
         js_enable = 1;
-        js_ptr = @intCast(i32, @ptrToInt(js.ptr));
-        js_len = @bitCast(i32, @truncate(c_uint, js.len));
+        const jp: usize = @intFromPtr(js.ptr);
+        js_ptr = @intCast(jp);
+        js_len = @intCast(js.len);
     }
 
-    const addr: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
+    const ad: usize = @intFromPtr(&RET_AREA);
+    const address: i32 = @intCast(ad);
     // ask host to forward on our behalf
     request(
         method,
@@ -101,26 +105,34 @@ pub fn send(req: anytype) ![]const u8 {
         js_enable,
         js_ptr,
         js_len,
-        addr,
+        address,
     );
 
-    const ptr = @intCast(usize, addr);
-    const errcode = @as(c_uint, @intToPtr([*c]u8, ptr).*);
-    if (errcode == 0) {
-        const status = @as(c_uint, @intToPtr([*c]u16, ptr + @as(c_int, 4)).*);
-        std.log.debug("outbound.post, {d}", .{status});
+    const code_ptr: [*c]u8 = @ptrFromInt(ad);
+    const errcode: u8 = @intCast(code_ptr.*);
 
-        const has_payload = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 20)).*);
+    if (errcode == 0) {
+        const status_ptr: [*c]u16 = @ptrFromInt(ad + 4);
+        const status: u16 = @intCast(status_ptr.*);
+        std.log.debug("Outbound.post, {d}\x0A", .{status});
+
+        const flag_ptr: [*c]u8 = @ptrFromInt(ad + 20);
+        const has_payload: u16 = @intCast(flag_ptr.*);
         if (has_payload == 0) return "";
+
         // unmarshal response content
-        const pl_ptr = @intToPtr([*c]u8, @intCast(usize, @intToPtr([*c]i32, ptr + 24).*));
-        const pl_len = @bitCast(usize, @as(c_long, @intToPtr([*c]i32, ptr + @as(c_int, 28)).*));
+        const content_ptr: [*c]i32 = @ptrFromInt(ad + 24);
+        const max_ptr: [*c]i32 = @ptrFromInt(ad + 28);
+        const pp: usize = @intCast(content_ptr.*);
+        const pl_ptr: [*c]u8 = @ptrFromInt(pp);
+        const pl_len: usize = @intCast(max_ptr.*);
 
         return pl_ptr[0..pl_len];
     }
 
+    const err_ptr: [*c]u8 = @ptrFromInt(ad + 4);
+    const err_grp: u8 = @intCast(err_ptr.*);
     var detail: []const u8 = undefined;
-    const err_grp = @as(c_uint, @intToPtr([*c]u8, ptr + @as(c_int, 4)).*);
     switch (err_grp) {
         1 => detail = "destination not allowed",
         2 => detail = "invalid url",
@@ -129,6 +141,6 @@ pub fn send(req: anytype) ![]const u8 {
         5 => detail = "too many requests",
         else => detail = "unreachable-else",
     }
-    std.log.err("HTTP outbound, {s}", .{detail});
+    std.log.err("HTTP outbound, {s}\x0A", .{detail});
     return error.OutboundPost;
 }
