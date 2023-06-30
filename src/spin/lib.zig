@@ -69,7 +69,7 @@ fn canAbiRealloc(
         return newslice.ptr;
     }
 
-    var cp = @ptrCast([*]u8, arg_ptr.?);
+    var cp: [*]u8 = @ptrCast(arg_ptr.?);
     var slice = cp[0..arg_oldsz];
     const reslice = gpa.realloc(slice, arg_newsz) catch @panic("Resize realloc fault");
     return reslice.ptr;
@@ -80,7 +80,8 @@ fn canAbiFree(arg_ptr: ?*anyopaque, arg_size: usize, arg_align: usize) callconv(
     if (arg_ptr == null) @panic("Null ptr free fault");
     _ = arg_align;
     //std.debug.assert(arg_align == @alignOf(usize));
-    var cp = @ptrCast([*]u8, arg_ptr.?);
+
+    var cp: [*]u8 = @ptrCast(arg_ptr.?);
     var slice = cp[0..arg_size];
     gpa.free(slice);
 }
@@ -137,32 +138,42 @@ fn postprocess() i32 {
     // TODO most of this feels very wasi, does it need to move into wasi namespace?
 
     // address of memory shared to the C/host
-    const ad: i32 = @intCast(i32, @ptrToInt(&RET_AREA));
+    const ad: usize = @intFromPtr(&RET_AREA);
+    var status_code: [*c]i16 = @ptrFromInt(ad);
+    var headers_enable: [*c]i8 = @ptrFromInt(ad + 4);
+    var headers_len: [*c]i32 = @ptrFromInt(ad + 12);
+    var headers_ptr: [*c]i32 = @ptrFromInt(ad + 8);
+    var body_enable: [*c]i8 = @ptrFromInt(ad + 16);
+    var body_len: [*c]i32 = @ptrFromInt(ad + 24);
+    var body_ptr: [*c]i32 = @ptrFromInt(ad + 20);
+
     // copy HTTP status code to share
-    @intToPtr([*c]i16, @intCast(usize, ad)).* = @as(i16, @enumToInt(ret.status));
+    status_code.* = @intFromEnum(ret.status);
 
     // store headers to share
     if (ret.headers.list.items.len != 0) {
         const ar = wasi.shipFields(ally, ret.headers) catch @panic("Own fields fault");
-        @intToPtr([*c]i8, @intCast(usize, ad + 4)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, ad + 12)).* = @intCast(i32, ar.len);
-        @intToPtr([*c]i32, @intCast(usize, ad + 8)).* = @intCast(i32, @ptrToInt(ar.ptr));
+        const ap: usize = @intFromPtr(ar.ptr);
+        headers_enable.* = 1;
+        headers_len.* = @intCast(ar.len);
+        headers_ptr.* = @intCast(ap);
     } else {
-        @intToPtr([*c]i8, @intCast(usize, ad + 4)).* = 0;
+        headers_enable.* = 0;
     }
 
     // store content to share
     if (ret.body.items.len != 0) {
         const cp = ret.body.items;
-        @intToPtr([*c]i8, @intCast(usize, ad + 16)).* = 1;
-        @intToPtr([*c]i32, @intCast(usize, ad + 24)).* = @intCast(i32, cp.len);
-        @intToPtr([*c]i32, @intCast(usize, ad + 20)).* = @intCast(i32, @ptrToInt(cp.ptr));
+        const pp: usize = @intFromPtr(cp.ptr);
+        body_enable.* = 1;
+        body_len.* = @intCast(cp.len);
+        body_ptr.* = @intCast(pp);
     } else {
-        @intToPtr([*c]i8, @intCast(usize, ad + 16)).* = 0;
+        body_enable.* = 0;
     }
 
     // address to share
-    return ad;
+    return @intCast(ad);
 }
 
 // act as umbrella namespace for the sdk

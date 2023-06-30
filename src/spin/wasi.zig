@@ -28,9 +28,10 @@ const Xstr = extern struct { ptr: [*c]const u8, len: usize };
 const Xtup = extern struct { f0: Xstr, f1: Xstr };
 
 // C array to slice
-pub fn xslice(ally: Allocator, ad: Xptr, rowcount: i32) ![]std.http.Field {
-    const record = @intToPtr([*c]Xtup, @intCast(usize, ad));
-    const max = @intCast(usize, rowcount);
+pub fn xslice(ally: Allocator, addr: Xptr, rowcount: i32) ![]std.http.Field {
+    const ad: usize = @intCast(addr);
+    const record: [*c]Xtup = @ptrFromInt(ad);
+    const max: usize = @intCast(rowcount);
 
     var pairs = std.ArrayList(std.http.Field).init(ally);
     var rownum: usize = 0;
@@ -102,15 +103,17 @@ pub const xdata = struct {
 
     // cast address to pointer w/o allocation
     pub fn init(addr: Xptr, len: i32) Self {
+        const ad: usize = @intCast(addr);
         return Self{
-            .ptr = @intToPtr([*c]u8, @intCast(usize, addr)),
-            .len = @intCast(usize, len),
+            .ptr = @ptrFromInt(ad),
+            .len = @intCast(len),
         };
     }
     // shortcut for cloning C string
     pub fn dupeZ(ally: Allocator, addr: Xptr, len: i32) ![:0]u8 {
-        const ptr = @intToPtr([*c]u8, @intCast(usize, addr));
-        const sz = @intCast(usize, len);
+        const ad: usize = @intCast(addr);
+        const ptr: [*c]u8 = @ptrFromInt(ad);
+        const sz: usize = @intCast(len);
         const old = ptr[0..sz];
         return ally.dupeZ(u8, old);
     }

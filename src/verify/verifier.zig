@@ -288,7 +288,7 @@ pub fn fromPEM(
     const off2 = algo_el.slice.start + 1;
     const off3 = off2 + 1;
 
-    const val2 = @intCast(usize, der_bytes[off2]);
+    const val2: usize = @intCast(der_bytes[off2]);
     const off4 = off3 + val2;
     const algo_cat = cert.AlgorithmCategory.map.get(der_bytes[off3..off4]);
     if (algo_cat == null) {
