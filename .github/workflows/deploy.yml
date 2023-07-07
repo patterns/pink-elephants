@@ -1,0 +1,51 @@
+name: Deploy
+env:
+  ZIG_VERSION: 0.11.0-dev.3890+43c98dc11
+
+# when commits are pushed or merged to `deploy`
+on:
+  push:
+    branches:
+      - deploy
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  spin:
+    name: Build against zig-0.11.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Fetch zig-0.11.0
+        run: |
+          curl https://ziglang.org/builds/zig-linux-x86_64-${{env.ZIG_VERSION}}.tar.xz -L -o zig.tar.xz
+          sudo tar -C /usr/local -xf zig.tar.xz
+          sudo ln -s /usr/local/zig-linux-x86_64-${{env.ZIG_VERSION}}/zig /usr/local/bin/zig
+          rm zig.tar.xz
+
+      - name: Check tests
+        run: zig build test
+
+      - name: Build components
+        run: zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.66
+          targets: wasm32-wasi
+
+      - name: Install Spin
+        uses: fermyon/actions/spin/setup@v1
+
+      - name: Build and deploy
+        uses: fermyon/actions/spin/deploy@v1
+        with:
+          manifest_file: bartholomew/spin.toml
+          fermyon_token: ${{ secrets.FERMYON_CLOUD_TOKEN }}
+          run_build: false
+
+
