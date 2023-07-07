@@ -1,0 +1,21 @@
+{{! This adds the HTML head section and the beginning of the body. See content_top.hbs. }}
+{{> content_top }}
+
+<div >
+    <article >
+        {{#with page.head}}
+        <h2 >{{title}}</h2>
+            <p >{{#if extra.date}}Published: {{extra.date}}{{/if}}</p>
+            {{/with}}
+            {{! Since this is HTML, we use the triple-curly }}
+            {{{page.body}}}
+            {{! Remove the `!` on the line below to see how to call a Rhai script }}
+            {{! echo "world" }}
+    </article>
+</div><!-- end col -->
+
+{{! This adds the sidebar }}
+{{> content_sidebar }}
+
+{{! This closes the body. See content_bottom.hbs. }}
+{{> content_bottom }}

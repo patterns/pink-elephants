@@ -1,0 +1,13 @@
+title = "PEoP"
+# logo = "URL to logo"
+##base_url = "http://localhost:3000"
+about = "Pink Elephants on Parade"
+theme = "bromide"
+index_site_pages = ["blurbs"]
+
+[extra]
+copyright = "興怡"
+github = "https://github.com/patterns"
+
+
+date_style = "%B %e, %Y"
