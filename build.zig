@@ -9,6 +9,7 @@ const export_names = [_][]const u8{
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const project_level = b.addOptions();
 
     // enable clib cross-compilation
     const lib = b.addStaticLibrary(.{
@@ -102,6 +103,9 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
 
+    // define a redis prefix which can be the filter for scanning keys
+    project_level.addOption([]const u8, "redis_prefix", "peop");
+
     // inbox component
     {
         const inexe = b.addExecutable(.{
@@ -116,6 +120,7 @@ pub fn build(b: *std.Build) void {
         inexe.addModule("pkcs1", pkcs1);
         inexe.single_threaded = true;
         inexe.export_symbol_names = &export_names;
+        inexe.addOptions("build_options", project_level);
         b.installArtifact(inexe);
     }
     // outbox component
@@ -132,6 +137,7 @@ pub fn build(b: *std.Build) void {
         obexe.addModule("pkcs1", pkcs1);
         obexe.single_threaded = true;
         obexe.export_symbol_names = &export_names;
+        obexe.addOptions("build_options", project_level);
         b.installArtifact(obexe);
     }
 

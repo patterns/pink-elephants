@@ -1,6 +1,6 @@
 name: Deploy
 env:
-  ZIG_VERSION: 0.11.0-dev.3890+43c98dc11
+  ZIG_VERSION: 0.11.0-dev.3949+27a66191c
 
 # when commits are pushed or merged to `deploy`
 on:

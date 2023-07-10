@@ -1,5 +1,6 @@
 const std = @import("std");
 const config = @import("config.zig");
+const redis_prefix = @import("build_options").redis_prefix;
 
 // add _job_ item that will be picked up by a _worker_
 pub fn enqueue(ally: std.mem.Allocator, content: std.json.Value) !void {
@@ -52,11 +53,13 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
 fn pseudoSeq(ally: std.mem.Allocator, id: ?std.json.Value) ![:0]u8 {
     //TODO want the SHA checksum from the header for uniqueness
 
+    const pre = redis_prefix ++ ":activity";
     if (id) |val| {
-        return try ally.dupeZ(u8, val.string);
+        ////return try ally.dupeZ(u8, val.string);
+        return try std.fmt.allocPrintZ(ally, "{s}:{s}", .{ pre, val.string });
     }
     // fallback pseudo-id
-    return try std.fmt.allocPrintZ(ally, "{d}", .{std.time.milliTimestamp()});
+    return try std.fmt.allocPrintZ(ally, "{s}:{d}", .{ pre, std.time.milliTimestamp() });
 }
 
 /////////////////////////////////////////////////////////////

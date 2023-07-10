@@ -3,12 +3,14 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.5.1"
+version = "0.5.3"
 
 [variables]
 domain_base = { required = true }
 redis_server = { required = true }
 redis_login = { required = true, secret = true }
+verifier_proxy = { required = true }
+verifier_bearer = { required = true, secret = true }
 
 [[component]]
 id = "bartholomew"
@@ -31,18 +33,24 @@ route = "/static/..."
 [[component]]
 id = "inbox"
 source = "modules/inbox.wasm"
+allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
 [component.trigger]
 route = "/inbox"
 [component.config]
 redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
+verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
+verifier_proxy_bearer = "{{ verifier_bearer }}"
 
 [[component]]
 id = "outbox"
 source = "modules/outbox.wasm"
+allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
 [component.trigger]
 route = "/outbox"
 [component.config]
 redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
+verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
+verifier_proxy_bearer = "{{ verifier_bearer }}"
 
 [[component]]
 id = "webfinger"
