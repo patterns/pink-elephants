@@ -49,8 +49,5 @@ jobs:
           manifest_file: bartholomew/spin.toml
           fermyon_token: ${{ secrets.FERMYON_CLOUD_TOKEN }}
           run_build: false
-          key_values: |-
-            domain_base=${{ secrets.DOMAIN_BASE }}
-
 
 
