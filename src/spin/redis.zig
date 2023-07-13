@@ -55,7 +55,6 @@ fn pseudoSeq(ally: std.mem.Allocator, id: ?std.json.Value) ![:0]u8 {
 
     const pre = redis_prefix ++ ":activity";
     if (id) |val| {
-        ////return try ally.dupeZ(u8, val.string);
         return try std.fmt.allocPrintZ(ally, "{s}:{s}", .{ pre, val.string });
     }
     // fallback pseudo-id

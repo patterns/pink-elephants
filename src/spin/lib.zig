@@ -132,8 +132,6 @@ fn vanilla(ally: Allocator, ret: anytype, rcv: anytype) void {
 }
 // life cycle post-process step
 fn postprocess() i32 {
-    const ally = wasi.shipAllocator();
-    const ret = wasi.shipReturns();
 
     // TODO most of this feels very wasi, does it need to move into wasi namespace?
 
@@ -146,6 +144,10 @@ fn postprocess() i32 {
     var body_enable: [*c]i8 = @ptrFromInt(ad + 16);
     var body_len: [*c]i32 = @ptrFromInt(ad + 24);
     var body_ptr: [*c]i32 = @ptrFromInt(ad + 20);
+
+    // allocator based on fixed buffer
+    const ally = wasi.shipAllocator();
+    const ret = wasi.shipReturns();
 
     // copy HTTP status code to share
     status_code.* = @intFromEnum(ret.status);
@@ -163,11 +165,15 @@ fn postprocess() i32 {
 
     // store content to share
     if (ret.body.items.len != 0) {
-        const cp = ret.body.items;
-        const pp: usize = @intFromPtr(cp.ptr);
+        const cp = ally.dupeZ(u8, ret.body.items) catch {
+            std.log.err("Final json OoM\x0A", .{});
+            status_code.* = 500;
+            return @intCast(ad);
+        };
+
         body_enable.* = 1;
         body_len.* = @intCast(cp.len);
-        body_ptr.* = @intCast(pp);
+        body_ptr.* = @intCast(@intFromPtr(cp.ptr));
     } else {
         body_enable.* = 0;
     }

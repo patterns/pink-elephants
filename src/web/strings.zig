@@ -2,6 +2,22 @@ const std = @import("std");
 const mem = std.mem;
 const log = std.log;
 const Allocator = mem.Allocator;
+//const self_actor = @import("build_options").self_actor
+//const site_subdomain = @import("build_options").site_subdomain
+
+// so with our naive substitutions in the json template
+// we do multiple replace calls which is not smart and to offset that,
+// might be good to do this with the build option and attempt to keep it comptime
+// (trade off of losing dynamic ability of conf variable, so the best
+// approach would be to implement real templates)
+pub fn fmtJson(ally: Allocator, json: []const u8, who: []const u8, subd: []const u8) ![]u8 {
+    //const who = self_actor;
+    //const subd = site_subdomain;
+    const replaced = try std.mem.replaceOwned(u8, ally, json, "xiphosura", who);
+    defer ally.free(replaced);
+
+    return std.mem.replaceOwned(u8, ally, replaced, "example.dev", subd);
+}
 
 // extract path from request
 pub fn toPath(ur: []const u8) []const u8 {

@@ -105,6 +105,9 @@ pub fn build(b: *std.Build) void {
 
     // define a redis prefix which can be the filter for scanning keys
     project_level.addOption([]const u8, "redis_prefix", "peop");
+    // link activitypub fields for json *templates*
+    ////project_level.addOption([]const u8, "self_actor", "xiphosura");
+    ////project_level.addOption([]const u8, "site_subdomain", "example.dev");
 
     // inbox component
     {

@@ -3,7 +3,7 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.5.4"
+version = "0.5.7"
 
 [variables]
 domain_base = { required = true }
@@ -68,7 +68,6 @@ source = "modules/actor.wasm"
 [component.trigger]
 route = "/u/..."
 [component.config]
+site_subdomain = "cloud-start-rkqucga6.{{ domain_base }}"
 self_actor = "echo"
-
-
 
