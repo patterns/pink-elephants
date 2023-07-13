@@ -49,10 +49,8 @@ jobs:
           manifest_file: bartholomew/spin.toml
           fermyon_token: ${{ secrets.FERMYON_CLOUD_TOKEN }}
           run_build: false
-
-      - name: Update spin config
-        run: |
-          spin cloud variables set domain_base=${{ secrets.DOMAIN_BASE }} --app "cloud_start"
+          key_values: |-
+            domain_base=${{ secrets.DOMAIN_BASE }}
 
 
 
