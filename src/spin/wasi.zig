@@ -55,12 +55,13 @@ pub fn shipAllocator() Allocator {
 pub fn shipReturns() struct {
     status: std.http.Status,
     headers: std.http.Headers,
-    body: std.ArrayList(u8),
+    body: *std.ArrayList(u8),
 } {
+    //const sentinel_slice = try returns.json.toOwnedSliceSentinel(0);
     return .{
         .status = returns.status,
         .headers = returns.h,
-        .body = returns.json,
+        .body = &returns.json,
     };
 }
 

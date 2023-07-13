@@ -1,0 +1,75 @@
+spin_version = "1"
+authors = ["patterns <addq1eax@gmail.com>"]
+description = "Pink Elephants on Parade"
+name = "cloud_start"
+trigger = { type = "http", base = "/" }
+version = "0.5.10"
+
+[variables]
+self_actor = { default = "echo" }
+site_name = { default = "cloud-start-rkqucga6" }
+domain_base = { required = true }
+redis_server = { required = true }
+redis_login = { required = true, secret = true }
+verifier_proxy = { required = true }
+verifier_bearer = { required = true, secret = true }
+
+[[component]]
+id = "bartholomew"
+files = [ "content/**/*" , "templates/*", "scripts/*", "config/*", "shortcodes/*", "themes/bromide/templates/*", "themes/bromide/scripts/*" ]
+[component.source]
+url = "https://github.com/fermyon/bartholomew/releases/download/v0.8.0/bartholomew.wasm"
+digest = "sha256:ad5ac6215fb67ca122011d2d12840cb69ba80819499641349e92c05ceb65afc1"
+[component.trigger]
+route = "/..."
+
+[[component]]
+id = "fileserver"
+files = [{ source = "themes/bromide/static", destination = "/" }, { source = "static/", destination = "/" } ]
+[component.source]
+url = "https://github.com/fermyon/spin-fileserver/releases/download/v0.0.2/spin_static_fs.wasm"
+digest = "sha256:65456bf4e84cf81b62075e761b2b0afaffaef2d0aeda521b245150f76b96421b"
+[component.trigger]
+route = "/static/..."
+
+[[component]]
+id = "inbox"
+source = "modules/inbox.wasm"
+allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
+[component.trigger]
+route = "/inbox"
+[component.config]
+redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
+verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
+verifier_proxy_bearer = "{{ verifier_bearer }}"
+
+[[component]]
+id = "outbox"
+source = "modules/outbox.wasm"
+allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
+[component.trigger]
+route = "/outbox"
+[component.config]
+redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
+verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
+verifier_proxy_bearer = "{{ verifier_bearer }}"
+
+[[component]]
+id = "webfinger"
+source = "modules/webfinger.wasm"
+[component.trigger]
+route = "/.well-known/webfinger"
+[component.config]
+site_name = "{{ site_name }}"
+site_subdomain = "{{ site_name }}.{{ domain_base }}"
+self_actor = "{{ self_actor }}"
+
+[[component]]
+id = "actor"
+source = "modules/actor.wasm"
+[component.trigger]
+route = "/u/..."
+[component.config]
+site_subdomain = "{{ site_name }}.{{ domain_base }}"
+self_actor = "{{ self_actor }}"
+

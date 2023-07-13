@@ -1,0 +1,36 @@
+{{> content_top}}
+<nav class="navbar is-primary"><div class="container">
+    <div class="navbar-brand"><p class="navbar-item">PEoP</p>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false"
+           data-target="navbarHero"
+           onclick="this.classList.toggle('is-active');document.querySelector('#'+this.dataset.target).classList.toggle('is-active');">
+
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        </a></div>
+    <div id="navbarHero" class="navbar-menu"><div class="navbar-end">
+        <a class="navbar-item is-active">Home</a>
+        <a class="navbar-item" href="/dev">Dev</a>
+        <a class="navbar-item" href="/sub">Sub</a>
+        <span class="navbar-item">
+            <a class="button is-primary is-inverted" href="{{page.head.extra.git}}">
+            <span class="icon"><i class="fab fa-github"></i></span><span>Git</span>
+            </a></span>
+        </div></div>
+    </div></nav>
+<section class="hero is-fullheight-with-navbar">
+<div class="hero-body"><div class="container has-text-centered">
+<p class="title">{{page.head.title}}</p>
+{{#if page.head.description}}
+<p class="subtitle">{{page.head.description}}</p>
+{{/if}}
+</div></div>
+
+<div class="hero-foot"><nav class="tabs"><div class="container"><ul>
+{{#if site.info.extra.copyright}}
+<li>&copy; {{site.info.extra.copyright}}</li>
+{{/if}}
+</ul></div></nav></div>
+</section>
+</body></html>

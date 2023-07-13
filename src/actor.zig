@@ -19,33 +19,54 @@ fn actorScript(ally: Allocator, ret: anytype, rcv: anytype) void {
     if (rcv.method != .GET) return status.nomethod();
 
     ret.headers.append("Content-Type", "application/json") catch {
-        log.err(" response header", .{});
+        log.err("Header fault in act", .{});
     };
     ret.headers.append("Access-Control-Allow-Origin", "*") catch {
-        log.err(" response header", .{});
+        log.err("Header fault in act", .{});
     };
 
     // ask host for actor setting
     const who = spin.config.selfActor() orelse "00000";
-
+    const subd = spin.config.siteSubdomain() orelse "00000";
     const branch = unknownActor(ally, rcv.uri, who) catch {
         log.err("allocPrint, OutOfMem", .{});
         return status.internal();
     };
     switch (branch) {
-        .actor => ret.body.appendSlice(actor_json) catch {
-            log.err("actor, OutOfMem", .{});
-            return status.internal();
+        .actor => {
+            const replaced = str.fmtJson(ally, actor_json, who, subd) catch {
+                log.err("Substituion fault in act", .{});
+                return status.internal();
+            };
+            defer ally.free(replaced);
+            ret.body.appendSlice(replaced) catch {
+                log.err("actor, OutOfMem", .{});
+                return status.internal();
+            };
         },
 
-        .followers => ret.body.appendSlice(followers_json) catch {
-            log.err("followers, OutOfMem", .{});
-            return status.internal();
+        .followers => {
+            const replaced = str.fmtJson(ally, followers_json, who, subd) catch {
+                log.err("Substituion fault in followers", .{});
+                return status.internal();
+            };
+            defer ally.free(replaced);
+            ret.body.appendSlice(replaced) catch {
+                log.err("followers, OutOfMem", .{});
+                return status.internal();
+            };
         },
 
-        .following => ret.body.appendSlice(following_json) catch {
-            log.err("following, OutOfMem", .{});
-            return status.internal();
+        .following => {
+            const replaced = str.fmtJson(ally, following_json, who, subd) catch {
+                log.err("Substituion fault in followers", .{});
+                return status.internal();
+            };
+            defer ally.free(replaced);
+            ret.body.appendSlice(replaced) catch {
+                log.err("following, OutOfMem", .{});
+                return status.internal();
+            };
         },
 
         .empty => return status.notfound(),
