@@ -27,8 +27,8 @@ for item in keys {
             page: matter,
     };
 
-    detail_pages.push(row),
+    detail_pages.push(row);
 }
 // Newest to oldest, assuming you put the date in the URI
-detail_pages.reverse();
+////detail_pages.reverse();
 

@@ -3,9 +3,11 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.5.7"
+version = "0.5.10"
 
 [variables]
+self_actor = { default = "echo" }
+site_name = { default = "cloud-start-rkqucga6" }
 domain_base = { required = true }
 redis_server = { required = true }
 redis_login = { required = true, secret = true }
@@ -58,9 +60,9 @@ source = "modules/webfinger.wasm"
 [component.trigger]
 route = "/.well-known/webfinger"
 [component.config]
-site_name = "cloud-start-rkqucga6"
-site_subdomain = "cloud-start-rkqucga6.{{ domain_base }}"
-self_actor = "echo"
+site_name = "{{ site_name }}"
+site_subdomain = "{{ site_name }}.{{ domain_base }}"
+self_actor = "{{ self_actor }}"
 
 [[component]]
 id = "actor"
@@ -68,6 +70,6 @@ source = "modules/actor.wasm"
 [component.trigger]
 route = "/u/..."
 [component.config]
-site_subdomain = "cloud-start-rkqucga6.{{ domain_base }}"
-self_actor = "echo"
+site_subdomain = "{{ site_name }}.{{ domain_base }}"
+self_actor = "{{ self_actor }}"
 
