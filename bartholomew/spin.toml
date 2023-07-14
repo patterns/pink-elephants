@@ -3,7 +3,7 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.5.10"
+version = "0.5.13"
 
 [variables]
 self_actor = { default = "echo" }
@@ -34,7 +34,7 @@ route = "/static/..."
 
 [[component]]
 id = "inbox"
-source = "modules/inbox.wasm"
+source = "modules/save.wasm"
 allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
 [component.trigger]
 route = "/inbox"
@@ -45,7 +45,7 @@ verifier_proxy_bearer = "{{ verifier_bearer }}"
 
 [[component]]
 id = "outbox"
-source = "modules/outbox.wasm"
+source = "modules/save.wasm"
 allowed_http_hosts = ["verifier-key-rcv.pages.dev"]
 [component.trigger]
 route = "/outbox"

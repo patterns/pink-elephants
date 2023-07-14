@@ -36,8 +36,7 @@ fn webfingerScript(ally: Allocator, ret: anytype, rcv: anytype) void {
         return status.internal();
     };
     defer ally.free(replaced);
-    ////ret.body.appendSlice(replaced) catch {
-    ret.body.appendSlice(webfinger_json) catch {
+    ret.body.appendSlice(replaced) catch {
         log.err("Append fault in wf", .{});
         return status.internal();
     };

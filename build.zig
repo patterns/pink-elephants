@@ -109,6 +109,19 @@ pub fn build(b: *std.Build) void {
     ////project_level.addOption([]const u8, "self_actor", "xiphosura");
     ////project_level.addOption([]const u8, "site_subdomain", "example.dev");
 
+    // save component
+    {
+        const saexe = b.addExecutable(.{
+            .name = "save",
+            .root_source_file = .{ .path = "src/save.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        saexe.single_threaded = true;
+        saexe.export_symbol_names = &export_names;
+        saexe.addOptions("build_options", project_level);
+        b.installArtifact(saexe);
+    }
     // inbox component
     {
         const inexe = b.addExecutable(.{
