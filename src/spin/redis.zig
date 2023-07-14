@@ -25,12 +25,14 @@ pub fn enqueue(ally: std.mem.Allocator, content: std.json.Value) !void {
 
 // capture extra request detail to debug/tests
 pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
-    const root = option.tree;
-    const rcv = option.rcv;
-
     var bucket = std.ArrayList(u8).init(ally);
     defer bucket.deinit();
+    // parsed json tree and received http
+    const rcv = option.rcv;
+    const root = option.tree;
     try root.jsonStringify(.{}, bucket.writer());
+
+    // inject debug marker
     try bucket.appendSlice("##DEBUG##");
     try rcv.headers.format("{s}", .{}, bucket.writer());
 
@@ -39,6 +41,30 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     defer ally.free(cpayload);
 
     var sequence_num = try pseudoSeq(ally, root.object.get("id"));
+    defer ally.free(sequence_num);
+
+    // duplicate redis address to sentinel-terminated
+    const addr: []const u8 = config.redisAddress() orelse "redis://127.0.0.1:6379";
+    const caddr = try ally.dupeZ(u8, addr);
+    defer ally.free(caddr);
+
+    saveEvent(caddr, sequence_num, cpayload);
+}
+pub fn debugText(ally: std.mem.Allocator, rcv: anytype) !void {
+    var bucket = std.ArrayList(u8).init(ally);
+    defer bucket.deinit();
+
+    try bucket.appendSlice(rcv.body);
+
+    // inject debug marker
+    try bucket.appendSlice("##DEBUG##");
+    try rcv.headers.format("{s}", .{}, bucket.writer());
+
+    // duplicate payload to sentinel-terminated
+    const cpayload = try ally.dupeZ(u8, bucket.items);
+    defer ally.free(cpayload);
+
+    var sequence_num = try pseudoSeq(ally, null);
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
