@@ -1,4 +1,5 @@
 {{> content_top }}
+{{> navbar }}
 <section class="section"><div class="container">
 <h2 class="title is-2">{{page.head.title}}</h2>
 <h4 class="subtitle is-4">{{page.head.description}}</h4>
@@ -13,11 +14,11 @@
 <tbody>
 {{#each (tables site.pages)}}
 <tr>
-    {{#with page.head}}
-    <td>{{date_format "%x" extra.date}}</td>
-    <td>{{extra.activity}}</td>
-    <td><a href="{{this.uri}}">{{extra.reference}}</a></td>
-    {{/with}}
+
+    <td>{{date_format "%x" page.head.extra.date}}</td>
+    <td>{{page.head.extra.activity}}</td>
+    <td><a href="{{uri}}">{{page.head.extra.reference}}</a></td>
+
 </tr>
 {{/each}}
 </tbody>
