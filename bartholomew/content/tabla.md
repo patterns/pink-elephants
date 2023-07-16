@@ -1,9 +1,8 @@
-title = "Notes, Lessons, Monologue"
-description = "Making a public record of my perpetual failures"
-template = "blurbs"
+title = "Aviso, Entradas, Informe"
+description = "Computador Mantenimiento Tareas"
+template = "tables"
 [extra]
 date = "2023-06-21T23:59:19Z"
-stripes = "yes"
 icons = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.1/css/all.min.css"
 git = "https://github.com/patterns/pink-elephants.git"
 ---
