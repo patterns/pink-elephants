@@ -57,22 +57,22 @@ func main() {
 		}
 		defer outf.Close()
 		err = tmpl.Execute(outf, pend)
-		/*
-			err = tmpl.Execute(outf, Pending{
-				Message: val,
-				Rownum: rownum,
-				Stamp: stamp,
-			})*/
 		if err != nil {
 			log.Printf("Template exec fault, %v", err)
 			break
 		}
 
+		// post-process
+		if pend.Activity == "Delete" {
+			// since we don't cache activitypub data (which would update)
+			// simply prune these "Delete" tickets
+			rdb.Del(ctx, rowid)
+		}
 	}
 	if err := iter.Err(); err != nil {
 		log.Panicf("Keys list fault, %v", err)
 	}
-
+	rdb.Close()
 }
 
 // file name (uses timestamp pattern for sorting)
@@ -83,17 +83,14 @@ func fmtFilepath(dir string, p *Pending) string {
 }
 
 func jsFields(js string, rownum int) *Pending {
-	var input string
-
 	// in debug, expect ##DEBUG## marker
-	sl := strings.Split(js, "##DEBUG##")
-	if len(sl) == 1 {
-		// non-debug payload
-		input = sl[0]
-	} else {
-		// todo inspect http headers were appended as second half
-		input = sl[0]
+	var sl = strings.Split(js, "##DEBUG##")
+	if len(sl) > 1 && len(sl[0]) == 0 {
+		// empty http body, arrived on /outbox endpoint?
+		return plainFields(sl[1], rownum)
 	}
+	// non-debug payload
+	var input = sl[0]
 
 	var f interface{}
 	err := json.Unmarshal([]byte(input), &f)
@@ -136,6 +133,39 @@ func jsFields(js string, rownum int) *Pending {
 		Activity:  activity,
 		Reference: id,
 		Timestamp: ts,
+	}
+}
+func plainFields(raw string, rownum int) *Pending {
+	var (
+		id        string
+		activity  string
+		published string
+	)
+	var sl = strings.Split(raw, "\r\n")
+	for _, v := range sl {
+		pair := strings.Split(v, ": ")
+		switch pair[0] {
+		case "signature":
+			id = fmt.Sprintf("record-%03d", rownum)
+		case "date":
+			published = pair[1]
+		case "spin-matched-route":
+			activity = pair[1]
+
+		}
+	}
+	pt, err := time.Parse(time.RFC1123, published)
+	if err != nil {
+		log.Printf("RFC1123 expected, %v", err)
+	}
+
+	return &Pending{
+		Message:   raw,
+		Date:      pt.Format(time.RFC3339),
+		Rownum:    rownum,
+		Activity:  activity,
+		Reference: id,
+		Timestamp: pt,
 	}
 }
 

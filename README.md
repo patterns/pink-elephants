@@ -3,7 +3,7 @@ use github actions/workflow
 
 
 
-## Credits
+## Mahalo
 
 Spin SDK
  by [Ethan Lewis](https://github.com/elewis787/spin-zig) ([LICENSE](https://github.com/elewis787/spin-zig/blob/main/LICENSE))
