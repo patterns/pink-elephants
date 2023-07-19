@@ -20,4 +20,6 @@ Zig fmt workflow
 Namespace
  by [Frank Denis](https://github.com/jedisct1/zigly/) ([LICENSE](https://github.com/jedisct1/zigly/blob/master/LICENSE))
 
+Plant UML AWS
+ by [AWS Labs](https://github.com/awslabs/aws-icons-for-plantuml)
 
