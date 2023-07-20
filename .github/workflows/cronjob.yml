@@ -24,7 +24,7 @@ jobs:
           go build -o worker ./transform_pending.go
           ./worker
         env:
-          REDIS_ADDRESS: ${{ secrets.REDIS_ADDRESS }}
+          REDIS_ADDRESS: "redis://${{ secrets.REDIS_LOGIN }}@${{ secrets.REDIS_SERVER }}"
 
       - name: Save markdown
         uses: actions/upload-artifact@v3
