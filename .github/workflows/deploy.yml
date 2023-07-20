@@ -1,6 +1,6 @@
 name: Deploy
 env:
-  ZIG_VERSION: 0.11.0-dev.4008+a0b35249a
+  ZIG_VERSION: 0.11.0-dev.4056+996eb0174
 
 # when commits are pushed or merged to `deploy`
 on:
@@ -34,11 +34,6 @@ jobs:
           zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
           mv ./zig-out/bin ./bartholomew/modules
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.66
-          targets: wasm32-wasi
 
       - name: Install Spin
         uses: fermyon/actions/spin/setup@v1

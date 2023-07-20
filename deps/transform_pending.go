@@ -34,18 +34,19 @@ func main() {
 	rdb := redis.NewClient(opt)
 	ctx := context.Background()
 	rownum := 0
+	totalDel := 0
 
 	// list of keys (wildcard pattern)
 	iter := rdb.Scan(ctx, 0, REDIS_PREFIX, 0).Iterator()
 	for iter.Next(ctx) {
 		rowid := iter.Val()
-		log.Printf("key( %v )", rowid)
+		////log.Printf("key( %v )", rowid)
 		// retrieve row by key
 		val, err := rdb.Get(ctx, rowid).Result()
 		if err != nil {
 			log.Panicf("Row fault, %v", err)
 		}
-		log.Printf("val, %s", val)
+		////log.Printf("val, %s", val)
 		rownum += 1
 		pend := jsFields(val, rownum)
 		// create markdown file for row
@@ -67,12 +68,15 @@ func main() {
 			// since we don't cache activitypub data (which would update)
 			// simply prune these "Delete" tickets
 			rdb.Del(ctx, rowid)
+			totalDel += 1
 		}
 	}
 	if err := iter.Err(); err != nil {
 		log.Panicf("Keys list fault, %v", err)
 	}
 	rdb.Close()
+	// summary
+	log.Printf("Done. (%d deleted of %d total)", totalDel, rownum)
 }
 
 // file name (uses timestamp pattern for sorting)
