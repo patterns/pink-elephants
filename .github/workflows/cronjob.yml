@@ -1,0 +1,34 @@
+name: Activity Daily Job
+
+on:
+  schedule:
+    # Runs at noon-ish on weekdays M-S
+    - cron: '55 11 * * 1-6'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  spin:
+    name: Create Markdown from Pending
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v4
+
+      - name: Build worker code
+        run: |
+          cd deps
+          go mod init github.com/patterns/peop
+          go mod tidy
+          go build -o worker ./transform_pending.go
+          ./worker
+        env:
+          REDIS_ADDRESS: ${{ secrets.REDIS_ADDRESS }}
+
+      - name: Save markdown
+        uses: actions/upload-artifact@v3
+        with:
+          name: md-pending
+          path: pending*/*.md
+
