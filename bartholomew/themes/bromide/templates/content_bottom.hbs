@@ -4,7 +4,7 @@
     <span class="icon"><i class="fas fa-gitlab"></i></span>
 
     {{#if site.info.extra.copyright }}
-    <p>&copy; {{site.info.extra.copyright}}</p>
+    <p>&copy; {{ now "%Y" }} {{site.info.extra.copyright}}</p>
     {{/if}}
 </div></footer>
 

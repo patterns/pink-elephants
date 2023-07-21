@@ -7,10 +7,10 @@ template = "blurb"
 date = "2023-07-01T23:59:19Z"
 
 ---
-<h1 class="title">Sequence Diagram</h1>
+<h1 class="title is-4">Sequence Diagram</h1>
 <div>
 <figure class="image "><img src="/static/diagram-inbox.svg"></figure>
-<h2 class="subtitle">Legend</h2>
+<h2 class="subtitle is-4">Legend</h2>
 <p>JSON - static files such as the content for webfinger, and the actor</p>
 <p>WASM - components which implement the *handler interface* from Spin</p>
 <p>Spin - webassembly framework by Fermyon</p>
