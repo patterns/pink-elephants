@@ -4,6 +4,17 @@ use github actions/workflow
 
 
 ## Mahalo
+Honk
+  by [Ted Unangst](https://humungus.tedunangst.com/r/honk) ([LICENSE](https://humungus.tedunangst.com/r/honk/v/tip/f/LICENSE))
+
+ActivityPub deconstructed
+  by [Tom MacWright](https://macwright.com/2022/12/09/activitypub.html)
+
+Mastodon in 6 static pages
+  by [Justin Garrison](https://github.com/rothgar/static-mastodon/) ([LICENSE](https://github.com/rothgar/static-mastodon/blob/main/LICENSE))
+
+Inbox
+  by [Darius Kazemi](https://github.com/dariusk/express-activitypub) ([LICENSE](https://github.com/dariusk/express-activitypub/blob/master/LICENSE-MIT))
 
 Spin SDK
  by [Ethan Lewis](https://github.com/elewis787/spin-zig) ([LICENSE](https://github.com/elewis787/spin-zig/blob/main/LICENSE))
@@ -17,8 +28,8 @@ Interfaces
 Zig fmt workflow
  by [Bun.sh](https://github.com/oven-sh/bun/)
 
-Namespace
- by [Frank Denis](https://github.com/jedisct1/zigly/) ([LICENSE](https://github.com/jedisct1/zigly/blob/master/LICENSE))
+Sequence diagrams
+ by [Kevin Hakanson](https://aws.amazon.com/blogs/architecture/sequence-diagrams-enrich-your-understanding-of-distributed-architectures/)
 
 PlantUML AWS
  by [AWS Labs](https://github.com/awslabs/aws-icons-for-plantuml)
