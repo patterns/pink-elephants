@@ -6,7 +6,7 @@ const redis_prefix = @import("build_options").redis_prefix;
 pub fn enqueue(ally: std.mem.Allocator, content: std.json.Value) !void {
     var bucket = std.ArrayList(u8).init(ally);
     defer bucket.deinit();
-    try content.jsonStringify(.{}, bucket.writer());
+    try std.json.stringify(content, .{}, bucket.writer());
 
     // duplicate payload to sentinel-terminated
     const cpayload = try ally.dupeZ(u8, bucket.items);
@@ -30,7 +30,7 @@ pub fn debugDetail(ally: std.mem.Allocator, option: anytype) !void {
     // parsed json tree and received http
     const rcv = option.rcv;
     const root = option.tree;
-    try root.jsonStringify(.{}, bucket.writer());
+    try std.json.stringify(root, .{}, bucket.writer());
 
     // inject debug marker
     try bucket.appendSlice("##DEBUG##");
