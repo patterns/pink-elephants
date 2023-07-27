@@ -12,6 +12,10 @@ jobs:
   spin:
     name: Build against zig-0.11.0
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v3
         with:
