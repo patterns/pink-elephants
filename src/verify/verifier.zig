@@ -49,7 +49,7 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     if (produce != undefined) {
         //const key_provider = impl.auth.get(.sub_key_id).value;
         if (impl.prev.getFirstValue("keyId")) |key_provider| {
-            const clean = std.mem.trim(u8, key_provider, qm_codept);
+            const clean = trimQuotes(key_provider);
             return produce(ally, clean);
         } else {
             return error.LeafKeyprovider;
@@ -128,7 +128,7 @@ const ByRSASignerImpl = struct {
         // each signature subheader has its value encased in quotes
         const shd = self.prev.getFirstValue("headers");
         if (shd == null) return error.LeafHeaders;
-        const recipe = mem.trim(u8, shd.?, qm_codept);
+        const recipe = trimQuotes(shd.?);
         var it = mem.tokenize(u8, recipe, sp_codept);
 
         const first = it.next();
@@ -212,7 +212,7 @@ const ByRSASignerImpl = struct {
         // which is base64 (format for header fields)
 
         if (self.prev.getFirstValue("signature")) |sig| {
-            const clean = mem.trim(u8, sig, qm_codept);
+            const clean = trimQuotes(sig);
 
             const max = try b64.calcSizeForSlice(clean);
             var decoded = buffer[0..max];
@@ -330,6 +330,18 @@ fn maxPEM() usize {
     return count * multi;
 }
 
+fn trimQuotes(txt: []const u8) []const u8 {
+    var clean = txt;
+    if (mem.startsWith(u8, txt, escaped_quotes) or
+        mem.endsWith(u8, txt, escaped_quotes))
+    {
+        // the backslash
+        clean = mem.trim(u8, txt, escaped_quotes);
+    }
+    // bare quotation marks
+    return mem.trim(u8, clean, qm_codept);
+}
+
 pub const VerifierError = error{
     ErrVerification,
     NotHashedBySHA256,
@@ -357,3 +369,4 @@ const cm_codept = "\u{002C}";
 const cm_literal = 0x2C;
 const es_codept = "\u{003D}";
 const es_literal = 0x3D;
+const escaped_quotes = "\u{005C}\u{0022}";

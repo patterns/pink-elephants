@@ -3,7 +3,7 @@ title = "PEoP"
 ##base_url = "http://localhost:3000"
 about = "Pink Elephants on Parade"
 theme = "bromide"
-index_site_pages = ["blurbs"]
+index_site_pages = ["blurbs", "tables"]
 
 [extra]
 copyright = "興怡"

@@ -1,7 +1,10 @@
 # pink-elephants
-use github actions/workflow 
 
-
+<picture>
+ <source media="(prefers-color-scheme: dark)" srcset="/bartholomew/static/diagram-dark-peop.png">
+ <source media="(prefers-color-scheme: light)" srcset="/bartholomew/static/diagram-peop.svg">
+ <img alt="diagram" src="/bartholomew/static/diagram-peop.svg">
+</picture>
 
 ## Mahalo
 Honk
