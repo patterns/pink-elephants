@@ -1,9 +1,8 @@
 const std = @import("std");
 const spin = @import("spin/lib.zig");
-const str = @import("web/strings.zig");
 const status = @import("web/status.zig");
-const vrf = @import("verify/verifier.zig");
 const proxy = @import("proxyverify.zig");
+
 comptime {
     spin.handle(outboxScript);
 }
@@ -11,30 +10,19 @@ pub fn main() void {
     std.debug.print("placeholder ", .{});
 }
 
+// one iteration from minimum script in which signature is checked
 fn outboxScript(ally: std.mem.Allocator, ret: anytype, rcv: anytype) void {
-    //TODO limit body content to 1MB
-    var parsed = std.json.parseFromSlice(std.json.Value, ally, rcv.body, .{}) catch {
-        std.log.err("JSON deserialize fault\x0A", .{});
-        return status.unprocessable();
-    };
-    defer parsed.deinit();
-    const root = parsed.value;
-    // todo verify timestamp
     if (!proxy.verifySignature(ally, rcv)) {
-        spin.redis.debugDetail(ally, .{ .rcv = rcv, .tree = root }) catch {
-            std.log.err("Detail fault\x0A", .{});
-        };
-        return status.internal();
+        return status.dependency();
     }
 
-    // capture for now (add processing later)
-    spin.redis.enqueue(ally, root) catch {
-        std.log.err("Enqueue fault\x0A", .{});
+    spin.redis.debugText(ally, rcv) catch {
+        std.log.err("Outbox debug fault\x0A", .{});
         return status.internal();
     };
 
     ret.headers.append("Content-Type", "application/json") catch {
-        std.log.err("response header, OutOfMem\x0A", .{});
+        std.log.err("Outbox header fault\x0A", .{});
     };
 
     status.ok();
