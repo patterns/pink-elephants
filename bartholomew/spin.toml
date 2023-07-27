@@ -3,11 +3,11 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.5.22"
+version = "0.6.1"
 
 [variables]
 self_actor = { default = "echo" }
-site_name = { default = "cloud-start-rkqucga6" }
+site_name = { required = true }
 domain_base = { required = true }
 redis_server = { required = true }
 redis_login = { required = true, secret = true }
