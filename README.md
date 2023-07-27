@@ -6,6 +6,21 @@
  <img alt="diagram" src="/bartholomew/static/diagram-peop.svg">
 </picture>
 
+## Quickstart
+```bash
+export SPIN_CONFIG_SELF_ACTOR="echo" 
+export SPIN_CONFIG_SITE_NAME="cloud-start-demo"
+export SPIN_CONFIG_DOMAIN_BASE="fermyon.app" 
+export SPIN_CONFIG_REDIS_SERVER="my-demo.us-central1.gce.cloud.redislabs.com:1122" 
+export SPIN_CONFIG_REDIS_LOGIN="my-demo-username" 
+export SPIN_CONFIG_VERIFIER_PROXY="my-verifier-proxy.pages.dev" 
+export SPIN_CONFIG_VERIFIER_BEARER="my-shared-verifier-token" 
+spin up --from-registry ghcr.io/patterns/pink-elephants:latest
+
+# in a separate tmux tab
+curl --verbose http://localhost:3000
+```
+
 ## Mahalo
 Honk
   by [Ted Unangst](https://humungus.tedunangst.com/r/honk) ([LICENSE](https://humungus.tedunangst.com/r/honk/v/tip/f/LICENSE))
