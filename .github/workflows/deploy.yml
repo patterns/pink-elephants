@@ -1,14 +1,12 @@
 name: Deploy
 env:
-  ZIG_VERSION: 0.11.0-dev.4246+71dfce31b
+  ZIG_VERSION: 0.11.0-dev.4282+0f21d3d4d
+  OCI_NAMESPC: patterns/pink-elephants:latest
 
-# when commits are pushed or merged to `deploy`
 on:
   push:
     branches:
-      - deploy
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+      - main
 
 jobs:
   spin:
@@ -34,15 +32,12 @@ jobs:
           zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
           mv ./zig-out/bin ./bartholomew/modules
 
-
       - name: Install Spin
         uses: fermyon/actions/spin/setup@v1
 
-      - name: Build and deploy
-        uses: fermyon/actions/spin/deploy@v1
-        with:
-          manifest_file: bartholomew/spin.toml
-          fermyon_token: ${{ secrets.FERMYON_CLOUD_TOKEN }}
-          run_build: false
 
+      - name: Push to registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | spin registry login ghcr.io --username ${{ github.actor }} --password-stdin 
+          cd ./bartholomew && spin registry push ghcr.io/${{ env.OCI_NAMESPC }}
 
