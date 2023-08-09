@@ -3,7 +3,7 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.6.1"
+version = "0.6.4"
 
 [variables]
 self_actor = { default = "echo" }
@@ -27,8 +27,8 @@ route = "/..."
 id = "fileserver"
 files = [{ source = "themes/bromide/static", destination = "/" }, { source = "static/", destination = "/" } ]
 [component.source]
-url = "https://github.com/fermyon/spin-fileserver/releases/download/v0.0.2/spin_static_fs.wasm"
-digest = "sha256:65456bf4e84cf81b62075e761b2b0afaffaef2d0aeda521b245150f76b96421b"
+url = "https://github.com/fermyon/spin-fileserver/releases/download/v0.0.3/spin_static_fs.wasm"
+digest = "sha256:38bf971900228222f7f6b2ccee5051f399adca58d71692cdfdea98997965fd0d"
 [component.trigger]
 route = "/static/..."
 
@@ -56,6 +56,15 @@ verifier_proxy_bearer = "{{ verifier_bearer }}"
 
 [[component]]
 id = "webfinger"
+source = "modules/webfinger.wasm"
+[component.trigger]
+route = "/well-known/webfinger"
+[component.config]
+site_name = "{{ site_name }}"
+site_subdomain = "{{ site_name }}.{{ domain_base }}"
+self_actor = "{{ self_actor }}"
+[[component]]
+id = "dotwebfinger"
 source = "modules/webfinger.wasm"
 [component.trigger]
 route = "/.well-known/webfinger"

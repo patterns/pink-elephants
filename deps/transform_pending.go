@@ -13,7 +13,7 @@ import (
 )
 import "github.com/redis/go-redis/v9"
 
-const REDIS_PREFIX = "peop:activity:*"
+const REDIS_PREFIX = "pnklph:activity:*"
 
 func main() {
 	dir, err := os.Getwd()

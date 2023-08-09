@@ -74,8 +74,8 @@ pub fn build(b: *std.Build) void {
 
     lib.addCSourceFiles(&sources, &cflags);
     lib.linkLibC();
-    lib.addIncludePath("./deps/mbedtls/include");
-    lib.addIncludePath(libroot);
+    lib.addIncludePath(.{ .path = "./deps/mbedtls/include" });
+    lib.addIncludePath(.{ .path = libroot });
     b.installArtifact(lib);
 
     // internal module for zig code to consume
@@ -92,7 +92,7 @@ pub fn build(b: *std.Build) void {
     });
     unit_tests.linkLibC();
     unit_tests.linkLibrary(lib);
-    unit_tests.addIncludePath("./deps/mbedtls/include");
+    unit_tests.addIncludePath(.{ .path = "./deps/mbedtls/include" });
     unit_tests.addModule("pkcs1", pkcs1);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
@@ -104,7 +104,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_unit_tests.step);
 
     // define a redis prefix which can be the filter for scanning keys
-    project_level.addOption([]const u8, "redis_prefix", "peop");
+    project_level.addOption([]const u8, "redis_prefix", "pnklph");
     // link activitypub fields for json *templates*
     ////project_level.addOption([]const u8, "self_actor", "xiphosura");
     ////project_level.addOption([]const u8, "site_subdomain", "example.dev");
@@ -132,7 +132,7 @@ pub fn build(b: *std.Build) void {
         });
         inexe.linkLibC();
         inexe.linkLibrary(lib);
-        inexe.addIncludePath("./deps/mbedtls/include");
+        inexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
         inexe.addModule("pkcs1", pkcs1);
         inexe.single_threaded = true;
         inexe.export_symbol_names = &export_names;
@@ -149,7 +149,7 @@ pub fn build(b: *std.Build) void {
         });
         obexe.linkLibC();
         obexe.linkLibrary(lib);
-        obexe.addIncludePath("./deps/mbedtls/include");
+        obexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
         obexe.addModule("pkcs1", pkcs1);
         obexe.single_threaded = true;
         obexe.export_symbol_names = &export_names;
