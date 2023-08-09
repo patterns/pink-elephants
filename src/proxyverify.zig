@@ -47,16 +47,14 @@ fn produceVerifierByProxy(ally: Allocator, key_provider: []const u8) !vrf.Parsed
 
     const pem = try pemFragment(ally, js);
     defer ally.free(pem);
+    std.log.debug("<< pemFrag {s}\x0A", .{pem});
+
     var fbs = std.io.fixedBufferStream(pem);
     return vrf.fromPEM(ally, fbs.reader());
 }
 
 // read the PEM section from the actor JSON
 fn pemFragment(ally: Allocator, js: []const u8) ![]const u8 {
-    //var parser = std.json.Parser.init(ally, .alloc_if_needed);
-    //defer parser.deinit();
-    //var tree = try parser.parse(js);
-    //defer tree.deinit();
     var parsed = try std.json.parseFromSlice(std.json.Value, ally, js, .{});
     defer parsed.deinit();
     const root = parsed.value;

@@ -1,6 +1,6 @@
 name: nightly
 env:
-  ZIG_VERSION: 0.11.0-dev.4282+0f21d3d4d
+  ZIG_VERSION: 0.12.0-dev.21+ac95cfe44
 
 on:
   pull_request:
@@ -14,13 +14,13 @@ on:
 
 jobs:
   nightly:
-    name: Build against zig-0.11.0
+    name: Build against zig-0.12.0
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - name: Fetch zig-0.11.0
+      - name: Fetch zig-0.12.0
         run: |
           curl https://ziglang.org/builds/zig-linux-x86_64-${{env.ZIG_VERSION}}.tar.xz -L -o zig.tar.xz
           sudo tar -C /usr/local -xf zig.tar.xz

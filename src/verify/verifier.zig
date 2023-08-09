@@ -46,16 +46,12 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
 
 // allows test to fire the fetch event
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
-    if (produce != undefined) {
-        //const key_provider = impl.auth.get(.sub_key_id).value;
-        if (impl.prev.getFirstValue("keyId")) |key_provider| {
-            const clean = trimQuotes(key_provider);
-            return produce(ally, clean);
-        } else {
-            return error.LeafKeyprovider;
-        }
+    if (impl.prev.getFirstValue("keyId")) |key_provider| {
+        const clean = trimQuotes(key_provider);
+        return produce(ally, clean);
+    } else {
+        return error.LeafKeyprovider;
     }
-    return error.FetchNotDefined;
 }
 
 // Reminder, _Verifier_ rename here is to emphasize that our concern is
@@ -65,7 +61,7 @@ pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
 const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
 var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined, .ally = undefined };
-var produce: ProduceVerifierFn = undefined;
+var produce: ProduceVerifierFn = produceVanilla;
 
 pub fn deinit() void {
     impl.deinit();
@@ -110,8 +106,6 @@ const ByRSASignerImpl = struct {
     ally: Allocator,
 
     fn deinit(self: *Self) void {
-        //if (self.prev == undefined) return;
-
         self.prev.deinit();
         self.parsed.deinit(self.ally);
     }
@@ -198,8 +192,8 @@ const ByRSASignerImpl = struct {
         var c_hex_ex: [:0]u8 = try ally.dupeZ(u8, &ex);
         defer ally.free(c_hex_mo);
         defer ally.free(c_hex_ex);
-        //std.debug.print("\x0A?,mo: {s}", .{c_hex_mo});
-        //std.debug.print("\x0A?,ex: {s}", .{c_hex_ex});
+
+        std.log.debug(">> pkcs1.verify {s}, {s}\x0A", .{ c_hex_mo, c_hex_ex });
 
         // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_hex_mo, c_hex_ex);
@@ -319,6 +313,14 @@ pub fn fromPEM(
         .algo = algo,
         .len = pv_len,
     };
+}
+
+// initialization for the verifier fetch
+fn produceVanilla(ally: Allocator, key_provider: []const u8) !ParsedVerifier {
+    // todo should we fold in the custom fetch as a default (it requires conf settings)
+    _ = ally;
+    _ = key_provider;
+    return error.FetchNotDefined;
 }
 
 // limit of RSA pub key
