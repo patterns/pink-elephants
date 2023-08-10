@@ -15,6 +15,12 @@ pub fn verifierProxyUri() ?[]u8 {
 pub fn verifierProxyBearer() ?[]u8 {
     return get("verifier_proxy_bearer");
 }
+pub fn httpsigOrigin() ?[]u8 {
+    return get("httpsig_host_origin");
+}
+pub fn httpsigGateway() ?[]u8 {
+    return get("httpsig_host_gateway");
+}
 
 /////////////////////////////////////////////////////////////
 // WASI C/interop

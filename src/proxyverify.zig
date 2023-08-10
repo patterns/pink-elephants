@@ -12,6 +12,11 @@ pub fn verifySignature(ally: Allocator, rcv: anytype) bool {
 
     vrf.attachFetch(produceVerifierByProxy);
 
+    // conf setting for the host header rewrite
+    const httpsig_origin = spin.config.httpsigOrigin() orelse "localhost";
+    const httpsig_gateway = spin.config.httpsigGateway() orelse "load-balancer";
+    vrf.rewriteRule(httpsig_origin, httpsig_gateway);
+
     var buffer: [512]u8 = undefined;
     var chan = std.io.fixedBufferStream(&buffer);
     vrf.fmtBase(rcv, chan.writer()) catch {
