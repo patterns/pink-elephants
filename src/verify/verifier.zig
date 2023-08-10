@@ -12,7 +12,7 @@ pub const ProduceVerifierFn = *const fn (ally: Allocator, key_provider: []const 
 // user defined step to harvest the verifier (pub key)
 pub fn attachFetch(fetch: ProduceVerifierFn) void {
     // usually triggers network trip to the key provider:
-    // - in wasi, we designate a proxy because no ACL will be exhaustive
+    // - in wasi, we designate a proxy because it is one ACL rule
     // - on-premise, can be database retrieve,
     // - in tests, will short circuit (fake/hard-coded)
     produce = fetch;
@@ -36,6 +36,21 @@ pub fn fmtBase(rcv: anytype, out: std.io.FixedBufferStream([]u8).Writer) !void {
     return impl.fmtBase(rcv, out);
 }
 
+// rewrite the host header
+pub fn rewriteRule(pattern: []const u8, replace: []const u8) void {
+    // for when the gateway (tunnel) is the public hostname and it forwards to
+    // our internal server which has a different hostname
+    // in other words, the host header will show as the internal server since
+    // our wasm component receives the request on the internal server.
+    // At the same time, the request has a HTTP signature created for the
+    // public hostname.
+    // TODO should this be managed as part of pre-processing in the life cycle
+    //      (because if you look at the debug json payload saved to redis,
+    //       we persist the headers)
+    rewrite[0] = pattern;
+    rewrite[1] = replace;
+}
+
 // verify signature
 pub fn bySigner(ally: Allocator, base: []const u8) !bool {
     // _pre-verify_, harvest the public key
@@ -46,8 +61,11 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
 
 // allows test to fire the fetch event
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
+    std.log.debug(">> produceV started\x0A", .{});
+
     if (impl.prev.getFirstValue("keyId")) |key_provider| {
         const clean = trimQuotes(key_provider);
+        std.log.debug("keyId {s}\x0A", .{clean});
         return produce(ally, clean);
     } else {
         return error.LeafKeyprovider;
@@ -62,6 +80,7 @@ const Verifier = @This();
 const Impl = struct { produce: ProduceVerifierFn };
 var impl = ByRSASignerImpl{ .parsed = undefined, .prev = undefined, .ally = undefined };
 var produce: ProduceVerifierFn = produceVanilla;
+var rewrite: [2][]const u8 = [2][]const u8{ "", "" };
 
 pub fn deinit() void {
     impl.deinit();
@@ -143,7 +162,11 @@ const ByRSASignerImpl = struct {
         while (it.next()) |base_el| {
             if (streq("host", base_el)) {
                 if (h2.getFirstValue("host")) |name| {
-                    try out.print("{s}host: {s}", .{ lf_codept, name });
+                    if (rewrite[0].len != 0 and streq(rewrite[0], name)) {
+                        try out.print("{s}host: {s}", .{ lf_codept, rewrite[1] });
+                    } else {
+                        try out.print("{s}host: {s}", .{ lf_codept, name });
+                    }
                 }
             } else if (streq("date", base_el)) {
                 //todo check timestamp
@@ -166,18 +189,20 @@ const ByRSASignerImpl = struct {
 
     // with the public key produced in preverify step, verify signature
     pub fn bySigner(self: Self, ally: Allocator, base: []const u8) !bool {
+        std.log.debug(">> bySigner started\x0A", .{});
+        std.log.debug("base {s}\x0A", .{base});
         // a RSA public key of modulus 2048 bits
         const rsa_modulus_2048 = 256;
 
         var buffer: [rsa_modulus_2048]u8 = undefined;
         var decoded = try self.signature(&buffer);
-        //std.debug.print("\n?,sig: {s}", .{std.fmt.fmtSliceHexLower(decoded)});
         // coerce to many pointer
         const c_decoded: [*]u8 = decoded.ptr;
 
         var hashed_msg: [32]u8 = undefined;
-        const sha = cert.Algorithm.sha256WithRSAEncryption.Hash();
-        sha.hash(base, &hashed_msg, .{});
+        ////const sha = cert.Algorithm.sha256WithRSAEncryption.Hash();
+        ////sha.hash(base, &hashed_msg, .{});
+        std.crypto.hash.sha2.Sha256.hash(base, &hashed_msg, .{});
         // coerce to many pointer
         const c_hashed: [*]u8 = &hashed_msg;
 
@@ -193,8 +218,7 @@ const ByRSASignerImpl = struct {
         defer ally.free(c_hex_mo);
         defer ally.free(c_hex_ex);
 
-        std.log.debug(">> pkcs1.verify {s}, {s}\x0A", .{ c_hex_mo, c_hex_ex });
-
+        std.log.debug(".. pkcs1.verify {s}, {s}\x0A", .{ c_hex_mo, c_hex_ex });
         // invoke verify from Mbed C/library
         try pkcs1.verify(c_hashed, c_decoded, c_hex_mo, c_hex_ex);
 

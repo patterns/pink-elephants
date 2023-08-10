@@ -3,7 +3,7 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.6.4"
+version = "0.6.5"
 
 [variables]
 self_actor = { default = "echo" }
@@ -13,6 +13,8 @@ redis_server = { required = true }
 redis_login = { required = true, secret = true }
 verifier_proxy = { required = true }
 verifier_bearer = { required = true, secret = true }
+httpsig_origin = { default = "" }
+httpsig_gateway = { default = "" }
 
 [[component]]
 id = "bartholomew"
@@ -42,6 +44,8 @@ route = "/inbox"
 redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
 verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
 verifier_proxy_bearer = "{{ verifier_bearer }}"
+httpsig_host_origin = "{{ httpsig_origin }}"
+httpsig_host_gateway = "{{ httpsig_gateway }}"
 
 [[component]]
 id = "outbox"
@@ -53,6 +57,8 @@ route = "/outbox"
 redis_address = "redis://{{ redis_login }}@{{ redis_server }}"
 verifier_proxy_uri = "https://{{ verifier_proxy }}/api/verifiers"
 verifier_proxy_bearer = "{{ verifier_bearer }}"
+httpsig_host_origin = "{{ httpsig_origin }}"
+httpsig_host_gateway = "{{ httpsig_gateway }}"
 
 [[component]]
 id = "webfinger"
