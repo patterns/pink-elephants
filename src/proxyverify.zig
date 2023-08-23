@@ -65,6 +65,7 @@ fn pemFragment(ally: Allocator, js: []const u8) ![]const u8 {
     const root = parsed.value;
 
     if (root.object.get("publicKey")) |pubK| {
+        // assumes well-formed JSON
         //const id = pubK.object.get("id").?.string;
         //const owner = pubK.object.get("owner").?.string;
         const pem = pubK.object.get("publicKeyPem").?.string;
