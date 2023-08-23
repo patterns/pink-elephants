@@ -13,6 +13,10 @@ pub fn main() void {
 // one iteration from minimum script in which signature is checked
 fn inboxScript(ally: std.mem.Allocator, ret: anytype, rcv: anytype) void {
     if (!proxy.verifySignature(ally, rcv)) {
+        // aggregate verify failures
+        spin.redis.failureText(ally, rcv) catch {
+            std.log.err("Inbox verify fault\x0A", .{});
+        };
         return status.dependency();
     }
 

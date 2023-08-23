@@ -3,7 +3,7 @@ authors = ["patterns <addq1eax@gmail.com>"]
 description = "Pink Elephants on Parade"
 name = "cloud_start"
 trigger = { type = "http", base = "/" }
-version = "0.6.5"
+version = "0.6.7"
 
 [variables]
 self_actor = { default = "echo" }
