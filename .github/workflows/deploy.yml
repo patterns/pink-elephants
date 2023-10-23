@@ -1,6 +1,6 @@
 name: Deploy
 env:
-  ZIG_VERSION: 0.12.0-dev.170+750998eef
+  ZIG_VERSION: 0.12.0-dev.1222+6f0198cad
   OCI_NAMESPC: patterns/pink-elephants:latest
 
 on:
