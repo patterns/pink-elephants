@@ -27,10 +27,10 @@ test "Produce verifier rsa" {
 
     // base-16: 65536 4096 256 16 1
     // which makes 65537 into 0x010001
-    var txt_exponent: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexLower(pk_components.exponent)});
+    const txt_exponent: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexLower(pk_components.exponent)});
     try expectStr("010001", txt_exponent);
 
-    var txt_modulus: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexUpper(pk_components.modulus)});
+    const txt_modulus: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexUpper(pk_components.modulus)});
     try expectStr("C2144346C37DF21A2872F76A438D94219740B7EAB3C98FE0AF7D20BCFAADBC871035EB5405354775DF0B824D472AD10776AAC05EFF6845C9CD83089260D21D4BEFCFBA67850C47B10E7297DD504F477F79BF86CF85511E39B8125E0CAD474851C3F1B1CA0FA92FF053C67C94E8B5CFB6C63270A188BED61AA9D5F21E91AC6CC9", txt_modulus);
 }
 

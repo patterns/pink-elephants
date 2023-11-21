@@ -46,7 +46,7 @@ pub fn qryParams(allocator: Allocator, txt: []const u8) std.StringHashMap([]cons
         return std.StringHashMap([]const u8).init(allocator);
     }
 
-    var remain = txt[start..txt.len];
+    const remain = txt[start..txt.len];
     return txtPairs(allocator, .{
         .data = remain,
         .delim = "&",
@@ -110,7 +110,7 @@ fn toKeyVal(remain: []const u8, option: anytype) ?[2][]const u8 {
     }
 
     //TODO ?should this be a struct
-    var arr = [2][]const u8{ key, cleaned };
+    const arr = [2][]const u8{ key, cleaned };
 
     return arr;
 }
@@ -140,7 +140,7 @@ pub fn percentDecode(allocator: Allocator, ur: []const u8) ![]const u8 {
     const max = mem.replacementSize(u8, ur, "+", " ");
     var acc = try allocator.alloc(u8, max);
     defer allocator.free(acc);
-    var tmp = try allocator.alloc(u8, max);
+    const tmp = try allocator.alloc(u8, max);
     defer allocator.free(tmp);
 
     // mutate plus symbols

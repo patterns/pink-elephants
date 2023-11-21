@@ -12,7 +12,7 @@ test "Reg signature base in the form of SHA256 sum" {
     var raw = common.regRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
 
-    var sim_rcv_request = .{
+    const sim_rcv_request = .{
         .method = .POST,
         .uri = "/foo?param=value&pet=dog",
         .headers = raw,

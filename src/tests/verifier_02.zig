@@ -12,7 +12,7 @@ test "Signature base input string reg" {
     var raw = common.regRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
 
-    var sim_rcv_request = .{
+    const sim_rcv_request = .{
         .method = .POST,
         .uri = "/foo?param=value&pet=dog",
         .headers = raw,
