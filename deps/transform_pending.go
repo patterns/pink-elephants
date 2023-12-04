@@ -14,6 +14,7 @@ import (
 import "github.com/redis/go-redis/v9"
 
 const REDIS_PREFIX = "pnklph:activity:*"
+const ACTOR_ADAFRUIT = "https://mastodon.cloud/users/adafruit"
 
 func main() {
 	dir, err := os.Getwd()
@@ -69,6 +70,12 @@ func main() {
 			// simply prune these "Delete" tickets
 			rdb.Del(ctx, rowid)
 			totalDel += 1
+		} else if !strings.HasPrefix(pend.Actor, ACTOR_ADAFRUIT) {
+			// "only want actor of adafruit"
+			// subscribed to adafruit, so we're pruning activity from others
+			// (todo I think this is the beginning of need for rules engine)
+			rdb.Del(ctx, rowid)
+			totalDel += 1
 		}
 	}
 	if err := iter.Err(); err != nil {
@@ -82,7 +89,7 @@ func main() {
 // file name (uses timestamp pattern for sorting)
 func fmtFilepath(dir string, p *Pending) string {
 	// attempt to extract timestamp from payload
-	prefix := p.Timestamp.Format(time.DateOnly)
+	prefix := p.Timestamp.Format("2006-366")
 	return filepath.Join(dir, fmt.Sprintf("%s-%03d.md", prefix, p.Rownum))
 }
 
@@ -105,6 +112,7 @@ func jsFields(js string, rownum int) *Pending {
 		id        string
 		activity  string
 		published string
+		actor     string
 	)
 	m := f.(map[string]interface{})
 	for k, v := range m {
@@ -115,6 +123,9 @@ func jsFields(js string, rownum int) *Pending {
 			published = v.(string)
 		case "type":
 			activity = v.(string)
+		case "actor":
+			actor = v.(string)
+
 		}
 	}
 	// fallback timestamp
@@ -137,6 +148,7 @@ func jsFields(js string, rownum int) *Pending {
 		Activity:  activity,
 		Reference: id,
 		Timestamp: ts,
+		Actor:     actor,
 	}
 }
 func plainFields(raw string, rownum int) *Pending {
@@ -144,6 +156,7 @@ func plainFields(raw string, rownum int) *Pending {
 		id        string
 		activity  string
 		published string
+		actor     string
 	)
 	var sl = strings.Split(raw, "\r\n")
 	for _, v := range sl {
@@ -151,6 +164,7 @@ func plainFields(raw string, rownum int) *Pending {
 		switch pair[0] {
 		case "signature":
 			id = fmt.Sprintf("record-%03d", rownum)
+			actor = scanKeyId(pair[1])
 		case "date":
 			published = pair[1]
 		case "spin-matched-route":
@@ -170,7 +184,19 @@ func plainFields(raw string, rownum int) *Pending {
 		Activity:  activity,
 		Reference: id,
 		Timestamp: pt,
+		Actor:     actor,
 	}
+}
+
+func scanKeyId(in string) string {
+	// expect 'keyId=stuff, remaing-subheader'
+	var sl = strings.Split(in, ",")
+	for _, v := range sl {
+		if strings.HasPrefix(v, "keyId=") {
+			return strings.TrimPrefix(v, "keyId=")
+		}
+	}
+	return ""
 }
 
 const activityTemplate = `
@@ -189,7 +215,7 @@ reference = "{{.Reference}}"
 `
 
 type Pending struct {
-	Message, Date, Activity, Reference string
-	Rownum                             int
-	Timestamp                          time.Time
+	Message, Date, Activity, Reference, Actor string
+	Rownum                                    int
+	Timestamp                                 time.Time
 }

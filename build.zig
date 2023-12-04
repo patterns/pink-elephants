@@ -72,7 +72,7 @@ pub fn build(b: *std.Build) void {
         libroot ++ "platform.c",
     };
 
-    lib.addCSourceFiles(&sources, &cflags);
+    lib.addCSourceFiles(.{.files=&sources, .flags=&cflags});
     lib.linkLibC();
     lib.addIncludePath(.{ .path = "./deps/mbedtls/include" });
     lib.addIncludePath(.{ .path = libroot });

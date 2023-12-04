@@ -32,12 +32,12 @@ pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anyt
         try single_use.append(bearer_fld, "verifier-proxy-bearer-token");
     }
 
-    var arr = try was.shipFields(ally, single_use);
+    const arr = try was.shipFields(ally, single_use);
 
     // uri (limit 255 characters) as C-string
     var curi: [255:0]u8 = undefined;
     if (uri.len >= curi.len) return error.PostUriMax;
-    std.mem.copy(u8, curi[0..uri.len], uri);
+    std.mem.copyBackwards(u8, curi[0..uri.len], uri);
     curi[uri.len] = 0;
 
     return send(.{

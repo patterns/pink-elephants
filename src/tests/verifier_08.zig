@@ -11,7 +11,7 @@ test "verify peop" {
     var raw = peopRawHeaders(ally) catch @panic("OutofMem");
     defer raw.deinit();
 
-    var sim_rcv_request = .{
+    const sim_rcv_request = .{
         .method = .POST,
         .uri = "/users/oatmeal/inbox",
         .headers = raw,

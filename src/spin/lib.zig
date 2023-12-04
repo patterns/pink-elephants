@@ -70,7 +70,7 @@ fn canAbiRealloc(
     }
 
     var cp: [*]u8 = @ptrCast(arg_ptr.?);
-    var slice = cp[0..arg_oldsz];
+    const slice = cp[0..arg_oldsz];
     const reslice = gpa.realloc(slice, arg_newsz) catch @panic("Resize realloc fault");
     return reslice.ptr;
 }
@@ -82,7 +82,7 @@ fn canAbiFree(arg_ptr: ?*anyopaque, arg_size: usize, arg_align: usize) callconv(
     //std.debug.assert(arg_align == @alignOf(usize));
 
     var cp: [*]u8 = @ptrCast(arg_ptr.?);
-    var slice = cp[0..arg_size];
+    const slice = cp[0..arg_size];
     gpa.free(slice);
 }
 // end exports to comply with host
@@ -137,13 +137,13 @@ fn postprocess() i32 {
 
     // address of memory shared to the C/host
     const ad: usize = @intFromPtr(&RET_AREA);
-    var status_code: [*c]i16 = @ptrFromInt(ad);
-    var headers_enable: [*c]i8 = @ptrFromInt(ad + 4);
-    var headers_len: [*c]i32 = @ptrFromInt(ad + 12);
-    var headers_ptr: [*c]i32 = @ptrFromInt(ad + 8);
-    var body_enable: [*c]i8 = @ptrFromInt(ad + 16);
-    var body_len: [*c]i32 = @ptrFromInt(ad + 24);
-    var body_ptr: [*c]i32 = @ptrFromInt(ad + 20);
+    const status_code: [*c]i16 = @ptrFromInt(ad);
+    const headers_enable: [*c]i8 = @ptrFromInt(ad + 4);
+    const headers_len: [*c]i32 = @ptrFromInt(ad + 12);
+    const headers_ptr: [*c]i32 = @ptrFromInt(ad + 8);
+    const body_enable: [*c]i8 = @ptrFromInt(ad + 16);
+    const body_len: [*c]i32 = @ptrFromInt(ad + 24);
+    const body_ptr: [*c]i32 = @ptrFromInt(ad + 20);
 
     // allocator based on fixed buffer
     const ally = wasi.shipAllocator();

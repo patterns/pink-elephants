@@ -77,7 +77,7 @@ fn actorScript(ally: Allocator, ret: anytype, rcv: anytype) void {
 
 // "static" actor has limited formats
 fn unknownActor(allocator: Allocator, ur: []const u8, who: []const u8) !FormatOption {
-    var upath = str.toPath(ur);
+    const upath = str.toPath(ur);
 
     // request for actor
     const base = try std.fmt.allocPrint(allocator, "/u/{s}", .{who});

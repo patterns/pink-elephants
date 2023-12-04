@@ -195,7 +195,7 @@ const ByRSASignerImpl = struct {
         const rsa_modulus_2048 = 256;
 
         var buffer: [rsa_modulus_2048]u8 = undefined;
-        var decoded = try self.signature(&buffer);
+        const decoded = try self.signature(&buffer);
         // coerce to many pointer
         const c_decoded: [*]u8 = decoded.ptr;
 
@@ -206,15 +206,15 @@ const ByRSASignerImpl = struct {
         // coerce to many pointer
         const c_hashed: [*]u8 = &hashed_msg;
 
-        var pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
+        const pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
         var modu: [rsa_modulus_2048]u8 = undefined;
         var expo: [3]u8 = undefined;
-        std.mem.copy(u8, &modu, pkco.modulus);
-        std.mem.copy(u8, &expo, pkco.exponent);
+        std.mem.copyBackwards(u8, &modu, pkco.modulus);
+        std.mem.copyBackwards(u8, &expo, pkco.exponent);
         var mo = std.fmt.bytesToHex(modu, .upper);
         var ex = std.fmt.bytesToHex(expo, .upper);
-        var c_hex_mo: [:0]u8 = try ally.dupeZ(u8, &mo);
-        var c_hex_ex: [:0]u8 = try ally.dupeZ(u8, &ex);
+        const c_hex_mo: [:0]u8 = try ally.dupeZ(u8, &mo);
+        const c_hex_ex: [:0]u8 = try ally.dupeZ(u8, &ex);
         defer ally.free(c_hex_mo);
         defer ally.free(c_hex_ex);
 
@@ -233,7 +233,7 @@ const ByRSASignerImpl = struct {
             const clean = trimQuotes(sig);
 
             const max = try b64.calcSizeForSlice(clean);
-            var decoded = buffer[0..max];
+            const decoded = buffer[0..max];
             try b64.decode(decoded, clean);
             return decoded;
         } else {

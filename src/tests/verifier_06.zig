@@ -24,10 +24,10 @@ test "Produce verifier eff" {
     // read key bitstring
     const pk_components = try cert.rsa.PublicKey.parseDer(pv.bits());
 
-    var txt_exponent: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexLower(pk_components.exponent)});
+    const txt_exponent: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexLower(pk_components.exponent)});
     try expectStr("010001", txt_exponent);
 
-    var txt_modulus: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexUpper(pk_components.modulus)});
+    const txt_modulus: []u8 = try std.fmt.bufPrint(&scratch_buf, "{any}", .{std.fmt.fmtSliceHexUpper(pk_components.modulus)});
     try expectStr("9E1C944BF0F66D0F6D3188C413A51B8F4D1BEF39FC2C887F65AFD661FC8D01410DB7A4B130E0C0E043DA6CE0648F4761F994C19ED47281AABC0451C4E86B8C6376BF566C6D75629070C106F26A42D3B94C947B3DC6978709E669CEC04DDD230E5A9EA3EFF9440FFAF36D5D510714809B79824787A513456CA4F6994DB361FFAC12C81D0E84B6154D4CBB18611E757848D160C392446AF950767ECCCD141E50A7764842ABB8D7DEE483C5B3031A129A9FEB624ADE35409799C5E9AE14D9AEB80EADD57359174FE825E390EFCAFF315E652EABCED0239CCCAE32FF014421E47E7B61C73E2F6B5907A3A91546BD75EED39A04305AC459A6982ECF2AA4D1BEA5CF6D", txt_modulus);
 }
 

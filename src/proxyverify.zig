@@ -24,7 +24,7 @@ pub fn verifySignature(ally: Allocator, rcv: anytype) bool {
         return false;
     };
 
-    var matching = vrf.bySigner(ally, chan.getWritten()) catch {
+    const matching = vrf.bySigner(ally, chan.getWritten()) catch {
         std.log.err("Sig verify fault\x0A", .{});
         return false;
     };

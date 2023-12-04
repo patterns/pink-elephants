@@ -58,11 +58,11 @@ const context = struct {
             cbod = try wasi.xdata.dupeZ(ally, bod_ptr, bod_len);
         }
 
-        var list = try wasi.xslice(ally, hdr_ptr, hdr_len);
+        const list = try wasi.xslice(ally, hdr_ptr, hdr_len);
         defer ally.free(list);
         try rcvHeaders(ally, list);
 
-        var pars = try wasi.xslice(ally, par_ptr, par_len);
+        const pars = try wasi.xslice(ally, par_ptr, par_len);
         defer ally.free(pars);
         try rcvParams(ally, pars);
     }

@@ -12,7 +12,7 @@ pub fn enqueue(ally: std.mem.Allocator, content: std.json.Value) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    var sequence_num = try pseudoSeq(ally, content.object.get("id"), "");
+    const sequence_num = try pseudoSeq(ally, content.object.get("id"), "");
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
@@ -38,7 +38,7 @@ pub fn debugText(ally: std.mem.Allocator, rcv: anytype) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    var sequence_num = try pseudoSeq(ally, null, "");
+    const sequence_num = try pseudoSeq(ally, null, "");
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
@@ -64,7 +64,7 @@ pub fn failureText(ally: std.mem.Allocator, rcv: anytype) !void {
     const cpayload = try ally.dupeZ(u8, bucket.items);
     defer ally.free(cpayload);
 
-    var sequence_num = try pseudoSeq(ally, null, "verify");
+    const sequence_num = try pseudoSeq(ally, null, "verify");
     defer ally.free(sequence_num);
 
     // duplicate redis address to sentinel-terminated
