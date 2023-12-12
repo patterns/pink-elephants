@@ -37,7 +37,7 @@ pub fn post(ally: Allocator, uri: []const u8, h: std.http.Headers, payload: anyt
     // uri (limit 255 characters) as C-string
     var curi: [255:0]u8 = undefined;
     if (uri.len >= curi.len) return error.PostUriMax;
-    std.mem.copyBackwards(u8, curi[0..uri.len], uri);
+    @memcpy(curi[0..uri.len], uri);
     curi[uri.len] = 0;
 
     return send(.{

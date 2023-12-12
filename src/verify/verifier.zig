@@ -209,8 +209,8 @@ const ByRSASignerImpl = struct {
         const pkco = try cert.rsa.PublicKey.parseDer(self.parsed.bits());
         var modu: [rsa_modulus_2048]u8 = undefined;
         var expo: [3]u8 = undefined;
-        std.mem.copyBackwards(u8, &modu, pkco.modulus);
-        std.mem.copyBackwards(u8, &expo, pkco.exponent);
+        @memcpy(&modu, pkco.modulus);
+        @memcpy(&expo, pkco.exponent);
         var mo = std.fmt.bytesToHex(modu, .upper);
         var ex = std.fmt.bytesToHex(expo, .upper);
         const c_hex_mo: [:0]u8 = try ally.dupeZ(u8, &mo);
