@@ -159,7 +159,7 @@ pub fn percentDecode(allocator: Allocator, ur: []const u8) ![]const u8 {
         log.debug("before, {s}", .{acc});
 
         count = mem.replace(u8, acc, old, new, tmp);
-        mem.copyBackwards(u8, acc, tmp);
+        @memcpy(acc, tmp);
 
         total += count * shrink;
         log.debug("after, {s} {d}", .{ acc, count });
