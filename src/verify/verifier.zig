@@ -63,7 +63,7 @@ pub fn bySigner(ally: Allocator, base: []const u8) !bool {
 pub fn produceVerifier(ally: Allocator) !ParsedVerifier {
     std.log.debug(">> produceV started\x0A", .{});
 
-    if (impl.prev.getFirstValue("keyId")) |key_provider| {
+    if (getFirstValue(impl.prev, "keyId")) |key_provider| {
         const clean = trimQuotes(key_provider);
         std.log.debug("keyId {s}\x0A", .{clean});
         return produce(ally, clean);
@@ -87,21 +87,21 @@ pub fn deinit() void {
 }
 // preverify which uses std.http.Headers
 // (to initialize auth params leaf nodes)
-pub fn init(ally: Allocator, h2: std.http.Headers) !void {
-    if (!h2.contains("signature")) return error.PreverifySignature;
-    var p = std.http.Headers.init(ally);
+pub fn init(ally: Allocator, h2: std.ArrayList(std.http.Header)) !void {
+    if (!containsHeader(h2, "signature")) return error.PreverifySignature;
+    var p = std.ArrayList(std.http.Header).init(ally);
 
-    if (h2.getFirstValue("signature")) |root| {
+    if (getFirstValue(h2, "signature")) |root| {
         // from draft12Fields
         var start_index: usize = 0;
         while (std.mem.indexOfPos(u8, root, start_index, cm_codept)) |mark| {
             const tup = try leafOffsets(root, start_index, mark);
-            try p.append(tup.fld, tup.val);
+            try p.append(.{.name=tup.fld, .value=tup.val});
             start_index = mark + 1;
         }
         const end_mark = root.len;
         const end_tup = try leafOffsets(root, start_index, end_mark);
-        try p.append(end_tup.fld, end_tup.val);
+        try p.append(.{.name=end_tup.fld, .value=end_tup.val});
     }
     impl.prev = p;
     impl.ally = ally;
@@ -121,7 +121,7 @@ fn leafOffsets(root: []const u8, start_index: usize, mark: usize) !struct { fld:
 const ByRSASignerImpl = struct {
     const Self = @This();
     parsed: ParsedVerifier,
-    prev: std.http.Headers,
+    prev: std.ArrayList(std.http.Header),
     ally: Allocator,
 
     fn deinit(self: *Self) void {
@@ -136,10 +136,10 @@ const ByRSASignerImpl = struct {
     ) !void {
         const verb: std.http.Method = rcv.method;
         const uri: []const u8 = rcv.uri;
-        const h2: std.http.Headers = rcv.headers;
+        const h2: std.ArrayList(std.http.Header) = rcv.headers;
 
         // each signature subheader has its value encased in quotes
-        const shd = self.prev.getFirstValue("headers");
+        const shd = getFirstValue(self.prev, "headers");
         if (shd == null) return error.LeafHeaders;
         const recipe = trimQuotes(shd.?);
         var it = mem.tokenize(u8, recipe, sp_codept);
@@ -161,7 +161,7 @@ const ByRSASignerImpl = struct {
         // base elements
         while (it.next()) |base_el| {
             if (streq("host", base_el)) {
-                if (h2.getFirstValue("host")) |name| {
+                if (getFirstValue(h2, "host")) |name| {
                     if (rewrite[0].len != 0 and streq(rewrite[0], name)) {
                         try out.print("{s}host: {s}", .{ lf_codept, rewrite[1] });
                     } else {
@@ -170,16 +170,16 @@ const ByRSASignerImpl = struct {
                 }
             } else if (streq("date", base_el)) {
                 //todo check timestamp
-                if (h2.getFirstValue("date")) |date| {
+                if (getFirstValue(h2, "date")) |date| {
                     try out.print("{s}date: {s}", .{ lf_codept, date });
                 }
             } else if (streq("digest", base_el)) {
                 //todo check digest
-                if (h2.getFirstValue("digest")) |digest| {
+                if (getFirstValue(h2, "digest")) |digest| {
                     try out.print("{s}digest: {s}", .{ lf_codept, digest });
                 }
             } else {
-                if (h2.getFirstValue(base_el)) |val| {
+                if (getFirstValue(h2, base_el)) |val| {
                     const lower = base_el;
                     try out.print("{s}{s}: {s}", .{ lf_codept, lower, val });
                 }
@@ -229,7 +229,7 @@ const ByRSASignerImpl = struct {
         // signature is the leaf node from parsing in preverify step
         // which is base64 (format for header fields)
 
-        if (self.prev.getFirstValue("signature")) |sig| {
+        if (getFirstValue(self.prev, "signature")) |sig| {
             const clean = trimQuotes(sig);
 
             const max = try b64.calcSizeForSlice(clean);
@@ -366,6 +366,25 @@ fn trimQuotes(txt: []const u8) []const u8 {
     }
     // bare quotation marks
     return mem.trim(u8, clean, qm_codept);
+}
+
+// headers helper to check for existence of field name in list of headers
+fn containsHeader(list: std.ArrayList(std.http.Header), needle: []const u8) bool {
+    for (list.items) |entry| {
+        if (std.ascii.eqlIgnoreCase(needle, entry.name)) {
+            return true;
+        }
+    }
+    return false;
+}
+// headers helper to access entry by name
+fn getFirstValue(list: std.ArrayList(std.http.Header), needle: []const u8) ?[]const u8 {
+    for (list.items) |entry| {
+        if (std.ascii.eqlIgnoreCase(needle, entry.name)) {
+            return entry.value;
+        }
+    }
+    return null;
 }
 
 pub const VerifierError = error{

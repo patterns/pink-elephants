@@ -7,7 +7,8 @@ const Allocator = std.mem.Allocator;
 // signature for scripters to write custom handlers (in zig)
 pub const EvalFn = *const fn (ally: Allocator, ret: anytype, rcv: anytype) void;
 pub fn handle(comptime h: EvalFn) void {
-    nested.next(h);
+    ////nested.next(h);
+    _ = keeper.next(h);
 }
 
 // begin exports required by C/host
@@ -50,7 +51,8 @@ fn guestHttpInit(
         .bod_len = arg_bod_len,
     }) catch @panic("Mem preproc fault");
 
-    nested.eval(ally);
+    ////nested.eval(ally);
+    keeper.eval(ally);
 
     return postprocess();
 }
@@ -87,18 +89,32 @@ fn canAbiFree(arg_ptr: ?*anyopaque, arg_size: usize, arg_align: usize) callconv(
 }
 // end exports to comply with host
 
-// namespace nesting (private in our case)
-const nested = blk: {
     // static event handlers
-    var scripts: EvalFn = vanilla;
+    ////var scripts: EvalFn = vanilla;
 
+// namespace nesting (private in our case)
+////const nested = blk: {
     const keeper = struct {
+
+
         // wire-up user defined script to be run
-        fn next(comptime h: EvalFn) void {
-            scripts = h;
+        fn next(comptime h: EvalFn) EvalFn {
+            ////scripts = h;
+            comptime var local_static: EvalFn = vanilla;
+
+            // using vanilla default as a flag which means "just return the static value"
+            if (h != vanilla) {
+                local_static = h;
+            }
+
+            const tmp = local_static;
+            return tmp;
         }
         // life cycle step
         fn eval(ally: Allocator) void {
+            // access the local static value
+            const scripts = next(vanilla);
+
             scripts(ally, .{
                 .headers = wasi.headers(),
                 .body = wasi.body(),
@@ -110,8 +126,8 @@ const nested = blk: {
             });
         }
     };
-    break :blk keeper;
-};
+////    break :blk keeper;
+////};
 
 // life cycle pre-process step
 fn preprocess(ally: Allocator, state: anytype) !void {
@@ -129,6 +145,7 @@ fn vanilla(ally: Allocator, ret: anytype, rcv: anytype) void {
         return;
     };
     status.ok();
+    ////status.internal();
 }
 // life cycle post-process step
 fn postprocess() i32 {
@@ -153,7 +170,7 @@ fn postprocess() i32 {
     status_code.* = @intFromEnum(ret.status);
 
     // store headers to share
-    if (ret.headers.list.items.len != 0) {
+    if (ret.headers.items.len != 0) {
         const ar = wasi.shipFields(ally, ret.headers) catch @panic("Own fields fault");
         const ap: usize = @intFromPtr(ar.ptr);
         headers_enable.* = 1;

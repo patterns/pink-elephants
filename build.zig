@@ -1,10 +1,10 @@
 const std = @import("std");
 // export symbols (in 0.11 see zig/issues/14139)
-const export_names = [_][]const u8{
-    "canonical_abi_free",
-    "canonical_abi_realloc",
-    "handle-http-request",
-};
+//const export_names = [_][]const u8{
+//    "canonical_abi_free",
+//    "canonical_abi_realloc",
+//    "handle-http-request",
+//};
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -80,8 +80,9 @@ pub fn build(b: *std.Build) void {
 
     // internal module for zig code to consume
     const pkcs1 = b.createModule(
-        .{ .source_file = .{ .path = "src/verify/pkcs1.zig" } },
+        .{ .root_source_file = .{ .path = "src/verify/pkcs1.zig" } },
     );
+    pkcs1.addIncludePath(.{ .path = "./deps/mbedtls/include" });
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
@@ -93,7 +94,7 @@ pub fn build(b: *std.Build) void {
     unit_tests.linkLibC();
     unit_tests.linkLibrary(lib);
     unit_tests.addIncludePath(.{ .path = "./deps/mbedtls/include" });
-    unit_tests.addModule("pkcs1", pkcs1);
+    unit_tests.root_module.addImport("pkcs1", pkcs1);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
@@ -116,10 +117,12 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/save.zig" },
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
         });
-        saexe.single_threaded = true;
-        saexe.export_symbol_names = &export_names;
-        saexe.addOptions("build_options", project_level);
+        ////saexe.export_symbol_names = &export_names;
+        saexe.root_module.addOptions("build_options", project_level);
+        saexe.rdynamic = true;
+        saexe.wasi_exec_model = .reactor;
         b.installArtifact(saexe);
     }
     // inbox component
@@ -129,14 +132,16 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/inbox.zig" },
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
         });
         inexe.linkLibC();
         inexe.linkLibrary(lib);
         inexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
-        inexe.addModule("pkcs1", pkcs1);
-        inexe.single_threaded = true;
-        inexe.export_symbol_names = &export_names;
-        inexe.addOptions("build_options", project_level);
+        inexe.root_module.addImport("pkcs1", pkcs1);
+        ////inexe.export_symbol_names = &export_names;
+        inexe.root_module.addOptions("build_options", project_level);
+        inexe.rdynamic = true;
+        inexe.wasi_exec_model = .reactor;
         b.installArtifact(inexe);
     }
     // outbox component
@@ -146,14 +151,16 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/outbox.zig" },
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
         });
         obexe.linkLibC();
         obexe.linkLibrary(lib);
         obexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
-        obexe.addModule("pkcs1", pkcs1);
-        obexe.single_threaded = true;
-        obexe.export_symbol_names = &export_names;
-        obexe.addOptions("build_options", project_level);
+        obexe.root_module.addImport("pkcs1", pkcs1);
+        ////obexe.export_symbol_names = &export_names;
+        obexe.root_module.addOptions("build_options", project_level);
+        obexe.rdynamic = true;
+        obexe.wasi_exec_model = .reactor;
         b.installArtifact(obexe);
     }
 
@@ -164,9 +171,11 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/webfinger.zig" },
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
         });
-        wfexe.single_threaded = true;
-        wfexe.export_symbol_names = &export_names;
+        ////wfexe.export_symbol_names = &export_names;
+        wfexe.rdynamic = true;
+        wfexe.wasi_exec_model = .reactor;
         b.installArtifact(wfexe);
     }
 
@@ -177,9 +186,11 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/actor.zig" },
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
         });
-        acexe.single_threaded = true;
-        acexe.export_symbol_names = &export_names;
+        ////acexe.export_symbol_names = &export_names;
+        acexe.rdynamic = true;
+        acexe.wasi_exec_model = .reactor;
         b.installArtifact(acexe);
     }
 }

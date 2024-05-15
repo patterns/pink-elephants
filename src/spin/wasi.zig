@@ -2,9 +2,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 // prepare ownership switch to control by C/host
-pub fn shipFields(ally: Allocator, h: std.http.Headers) ![]Xfield {
+pub fn shipFields(ally: Allocator, h: std.ArrayList(std.http.Header)) ![]Xfield {
     var fld_list = std.ArrayList(Xfield).init(ally);
-    for (h.list.items) |entry| {
+    for (h.items) |entry| {
         if (entry.value.len == 0) continue;
 
         const fld = try ally.dupeZ(u8, entry.name);
@@ -28,12 +28,12 @@ const Xstr = extern struct { ptr: [*c]const u8, len: usize };
 const Xtup = extern struct { f0: Xstr, f1: Xstr };
 
 // C array to slice
-pub fn xslice(ally: Allocator, addr: Xptr, rowcount: i32) ![]std.http.Field {
+pub fn xslice(ally: Allocator, addr: Xptr, rowcount: i32) ![]std.http.Header {
     const ad: usize = @intCast(addr);
     const record: [*c]Xtup = @ptrFromInt(ad);
     const max: usize = @intCast(rowcount);
 
-    var pairs = std.ArrayList(std.http.Field).init(ally);
+    var pairs = std.ArrayList(std.http.Header).init(ally);
     var rownum: usize = 0;
     while (rownum < max) : (rownum +%= 1) {
         const tup = record[rownum];
@@ -54,7 +54,7 @@ pub fn shipAllocator() Allocator {
 // accumulated fields which caller will use to prep returns step
 pub fn shipReturns() struct {
     status: std.http.Status,
-    headers: std.http.Headers,
+    headers: std.ArrayList(std.http.Header),
     body: *std.ArrayList(u8),
 } {
     //const sentinel_slice = try returns.json.toOwnedSliceSentinel(0);
@@ -65,7 +65,7 @@ pub fn shipReturns() struct {
     };
 }
 
-pub fn headers() *std.http.Headers {
+pub fn headers() *std.ArrayList(std.http.Header) {
     return &returns.h;
 }
 pub fn body() *std.ArrayList(u8) {
@@ -80,7 +80,7 @@ pub fn status(s: std.http.Status) void {
 pub fn shipping(ally: Allocator) void {
     returns.fba = std.heap.FixedBufferAllocator.init(&SHIP_RETURNS);
     returns.status = std.http.Status.service_unavailable;
-    returns.h = std.http.Headers.init(ally);
+    returns.h = std.ArrayList(std.http.Header).init(ally);
     returns.json = std.ArrayList(u8).init(ally);
 }
 // static global to back the shipping allocations (outside arena.deinit scope)
@@ -90,7 +90,7 @@ const returns = struct {
     // static vars
     var fba: std.heap.FixedBufferAllocator = undefined;
     var status: std.http.Status = undefined;
-    var h: std.http.Headers = undefined;
+    var h: std.ArrayList(std.http.Header) = undefined;
     var json: std.ArrayList(u8) = undefined;
 };
 

@@ -38,15 +38,15 @@ test "verify peop" {
 }
 
 // (follow) request fields
-fn peopRawHeaders(ally: Allocator) !std.http.Headers {
-    var h2 = std.http.Headers.init(ally);
-    try h2.append("host", "mastodon.social");
-    try h2.append("date", "Sun, 30 Apr 2023 04:55:37 GMT");
-    try h2.append("digest", "SHA-256=a9IYUmhfuVYZQnUuiqFWHhLnxk67FUjWF4W7vewjGKA=");
-    try h2.append(
-        "signature",
-        "keyId=\x22Testfoll\x22,algorithm=\x22rsa-sha256\x22,headers=\x22(request-target) host date digest\x22,signature=\x22ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\x22",
-    );
+fn peopRawHeaders(ally: Allocator) !std.ArrayList(std.http.Header) {
+    var h2 = std.ArrayList(std.http.Header).init(ally);
+    try h2.append(.{.name="host", .value="mastodon.social"});
+    try h2.append(.{.name="date", .value="Sun, 30 Apr 2023 04:55:37 GMT"});
+    try h2.append(.{.name="digest", .value="SHA-256=a9IYUmhfuVYZQnUuiqFWHhLnxk67FUjWF4W7vewjGKA="});
+    try h2.append(.{
+        .name="signature",
+        .value="keyId=\x22Testfoll\x22,algorithm=\x22rsa-sha256\x22,headers=\x22(request-target) host date digest\x22,signature=\x22ZooM2n+l3bYVe0lCU0V9kfBz6kLZ+LjjLPeiAoPbYT2FUQflA2ke7tZVmNGzbMKu+ILNrO9JpGlI+ai9fLKvDXbuPjurlZ6Sq9O8xgXJfuLjYY8n7qEil90dhhFa99cTDNR3RV3wk/i5cVLozoNJTJzQnGcCI5Z8MtMy7hi/W/1AR42CwCiP3CalnB0dS8S4cYdKUQnVPYX6cuCkQH7UdzcEUVQovZGZtRZ9dv3uBXlCKY+3k//haezLKtdyVYfkrGDngtS6MBz4Lp0M4LCa5XSwyUcVZ94+hx2ghoXaCiBjWtow02mrAqH9Ud8i/gnyQ9Bl18AmvmMcStcSBHrSQg==\x22",
+    });
 
     return h2;
 }

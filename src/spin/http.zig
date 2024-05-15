@@ -13,10 +13,11 @@ pub fn body() [:0]const u8 {
 pub fn uri() [:0]const u8 {
     return context.curi;
 }
-pub fn headers() std.http.Headers {
+pub fn headers() std.ArrayList(std.http.Header) {
+    // TODO should we use request.iterateHeaders()
     return context.h;
 }
-pub fn params() std.ArrayList(std.http.Field) {
+pub fn params() std.ArrayList(std.http.Header) {
     return context.p;
 }
 // the request received
@@ -31,8 +32,8 @@ pub fn deinit() void {
 const context = struct {
     // static variables
     var al: Allocator = undefined;
-    var h: std.http.Headers = undefined;
-    var p: std.ArrayList(std.http.Field) = undefined;
+    var h: std.ArrayList(std.http.Header) = undefined;
+    var p: std.ArrayList(std.http.Header) = undefined;
     var verb: std.http.Method = undefined;
     var curi: [:0]const u8 = undefined;
     var cbod: [:0]const u8 = undefined;
@@ -73,19 +74,19 @@ const context = struct {
         p.deinit();
     }
     // std.http.Headers make copies of the fields
-    fn rcvHeaders(ally: Allocator, list: []std.http.Field) !void {
-        h = std.http.Headers.init(ally);
+    fn rcvHeaders(ally: Allocator, list: []std.http.Header) !void {
+        h = std.ArrayList(std.http.Header).init(ally);
         var i: u32 = 0;
         while (i < list.len) : (i += 1) {
             const ent = list[i];
-            try h.append(ent.name, ent.value);
+            try h.append(.{ .name = ent.name, .value = ent.value });
             // owned fields have been copied into headers
-            ally.free(ent.name);
-            ally.free(ent.value);
+            ////ally.free(ent.name);
+            ////ally.free(ent.value);
         }
     }
-    fn rcvParams(ally: Allocator, pars: []std.http.Field) !void {
-        p = std.ArrayList(std.http.Field).init(ally);
+    fn rcvParams(ally: Allocator, pars: []std.http.Header) !void {
+        p = std.ArrayList(std.http.Header).init(ally);
         var i: u32 = 0;
         while (i < pars.len) : (i += 1) {
             const ent = pars[i];
