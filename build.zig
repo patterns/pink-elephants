@@ -74,26 +74,26 @@ pub fn build(b: *std.Build) void {
 
     lib.addCSourceFiles(.{.files=&sources, .flags=&cflags});
     lib.linkLibC();
-    lib.addIncludePath(.{ .path = "./deps/mbedtls/include" });
-    lib.addIncludePath(.{ .path = libroot });
+    lib.addIncludePath(b.path("./deps/mbedtls/include"));
+    lib.addIncludePath(b.path(libroot));
     b.installArtifact(lib);
 
     // internal module for zig code to consume
     const pkcs1 = b.createModule(
-        .{ .root_source_file = .{ .path = "src/verify/pkcs1.zig" } },
+        .{ .root_source_file = b.path("src/verify/pkcs1.zig") },
     );
-    pkcs1.addIncludePath(.{ .path = "./deps/mbedtls/include" });
+    pkcs1.addIncludePath(b.path("./deps/mbedtls/include"));
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
+        .root_source_file = b.path("src/tests.zig"),
         .target = target,
         .optimize = optimize,
     });
     unit_tests.linkLibC();
     unit_tests.linkLibrary(lib);
-    unit_tests.addIncludePath(.{ .path = "./deps/mbedtls/include" });
+    unit_tests.addIncludePath(b.path("./deps/mbedtls/include"));
     unit_tests.root_module.addImport("pkcs1", pkcs1);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
@@ -114,7 +114,7 @@ pub fn build(b: *std.Build) void {
     {
         const saexe = b.addExecutable(.{
             .name = "save",
-            .root_source_file = .{ .path = "src/save.zig" },
+            .root_source_file = b.path("src/save.zig"),
             .target = target,
             .optimize = optimize,
             .single_threaded = true,
@@ -129,14 +129,14 @@ pub fn build(b: *std.Build) void {
     {
         const inexe = b.addExecutable(.{
             .name = "inbox",
-            .root_source_file = .{ .path = "src/inbox.zig" },
+            .root_source_file = b.path("src/inbox.zig"),
             .target = target,
             .optimize = optimize,
             .single_threaded = true,
         });
         inexe.linkLibC();
         inexe.linkLibrary(lib);
-        inexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
+        inexe.addIncludePath(b.path("./deps/mbedtls/include"));
         inexe.root_module.addImport("pkcs1", pkcs1);
         ////inexe.export_symbol_names = &export_names;
         inexe.root_module.addOptions("build_options", project_level);
@@ -148,14 +148,14 @@ pub fn build(b: *std.Build) void {
     {
         const obexe = b.addExecutable(.{
             .name = "outbox",
-            .root_source_file = .{ .path = "src/outbox.zig" },
+            .root_source_file = b.path("src/outbox.zig"),
             .target = target,
             .optimize = optimize,
             .single_threaded = true,
         });
         obexe.linkLibC();
         obexe.linkLibrary(lib);
-        obexe.addIncludePath(.{ .path = "./deps/mbedtls/include" });
+        obexe.addIncludePath(b.path("./deps/mbedtls/include"));
         obexe.root_module.addImport("pkcs1", pkcs1);
         ////obexe.export_symbol_names = &export_names;
         obexe.root_module.addOptions("build_options", project_level);
@@ -168,7 +168,7 @@ pub fn build(b: *std.Build) void {
     {
         const wfexe = b.addExecutable(.{
             .name = "webfinger",
-            .root_source_file = .{ .path = "src/webfinger.zig" },
+            .root_source_file = b.path("src/webfinger.zig"),
             .target = target,
             .optimize = optimize,
             .single_threaded = true,
@@ -183,7 +183,7 @@ pub fn build(b: *std.Build) void {
     {
         const acexe = b.addExecutable(.{
             .name = "actor",
-            .root_source_file = .{ .path = "src/actor.zig" },
+            .root_source_file = b.path("src/actor.zig"),
             .target = target,
             .optimize = optimize,
             .single_threaded = true,
